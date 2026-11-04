@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="NOVA"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0d2f50"><title>NOVA | Consulta de Estoque</title>
+<script>try{if(localStorage.getItem('nova_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
+<section id="message" class="message hidden" role="status" aria-live="polite"><span class="message-icon">i</span><span id="messageText"></span><button id="dismissMessage" type="button" aria-label="Fechar mensagem">×</button></section>
+
+<!-- 1) LOGIN -->
+<div id="loginView" class="screen center-screen hidden">
+  <form id="loginForm" class="center-card login-card" autocomplete="on" novalidate>
+    <div class="card-brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
+    <h1>Entrar</h1>
+    <p class="card-sub">Use seu usuário e senha do Protheus.</p>
+    <div id="apiUrlWrap" class="field hidden"><label for="apiUrl">Endereço da API do Protheus</label><input id="apiUrl" type="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://servidor:porta/rest"></div>
+    <div class="field"><label for="username">Usuário</label><input id="username" name="username" autocomplete="username" spellcheck="false" autocapitalize="off" required></div>
+    <div class="field"><label for="password">Senha</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><button type="button" id="togglePassword" class="eye-btn" aria-label="Mostrar senha" title="Mostrar senha">◉</button></div></div>
+    <label class="remember"><input type="checkbox" id="remember"> <span>Mantenha-me conectado<small>Por 30 dias, enquanto o NOVA estiver aberto</small></span></label>
+    <button id="connectBtn" class="primary big-btn" type="submit">Entrar</button>
+    <div id="loginError" class="form-error hidden" role="alert"></div>
+  </form>
+  <p class="screen-foot" id="apiHost"></p>
+</div>
+
+<!-- 2) PESQUISA -->
+<div id="searchView" class="screen center-screen hidden">
+  <div class="screen-top">
+    <div class="card-brand light"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
+    <div class="top-actions"><button type="button" id="phoneBtn" class="secondary phone-btn hidden">📱 Usar no celular</button><div class="user-chip"><span class="user-dot" data-avatar>?</span><span data-user></span><button type="button" class="text-button logout-btn">Sair</button></div></div>
+  </div>
+  <form id="codeForm" class="center-card search-card" novalidate>
+    <h1>Consultar material</h1>
+    <p class="card-sub">Digite o código do produto com 12 caracteres.</p>
+    <div class="code-wrap">
+      <input id="codeInput" class="code-input" maxlength="12" autocomplete="off" spellcheck="false" autocapitalize="characters" placeholder="Ex: 40M090900010" aria-label="Código do produto (12 caracteres)">
+      <span id="codeCount" class="code-count">0/12</span>
+    </div>
+    <button id="codeBtn" class="primary big-btn" type="submit" disabled>Pesquisar <b>→</b></button>
+    <div class="history-link-wrap"><button type="button" id="openHistory" class="link-btn hidden">🕘 Ver histórico de pesquisas</button></div>
+  </form>
+</div>
+
+<!-- 3) RESULTADO (endereços) -->
+<div id="resultsView" class="app-shell hidden">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
+    <form class="header-search" id="headerSearch" aria-label="Nova consulta" novalidate>
+      <div class="search-input-wrap"><span>⌕</span><input id="term" maxlength="12" autocomplete="off" placeholder="Código do produto (12 caracteres)" spellcheck="false" aria-label="Código do produto"></div>
+      <button id="searchBtn" class="primary search-btn" type="submit">Pesquisar <b>→</b></button>
+    </form>
+    <div class="topbar-right">
+      <button id="newSearchBtn" class="header-login" type="button" aria-label="Nova pesquisa">← <span class="lbl">Nova pesquisa</span></button>
+      <button id="themeToggle2" class="header-login header-theme" type="button" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">☾</button>
+      <span class="user-chip dark"><span class="user-dot" data-avatar>?</span><span data-user class="lbl"></span><button type="button" class="text-button logout-btn">Sair</button></span>
+    </div>
+  </header>
+  <main>
+    <section id="stockSection" class="stock-section hidden">
+      <div class="stock-title"><div><span class="section-kicker">RESULTADO DO ESTOQUE</span><h2 id="selectedProduct"></h2></div><div class="stock-title-actions"><button id="punhoBtn" class="secondary punho-btn" type="button">🧵 Punhos</button><button id="prioritySettingsBtn" class="secondary" type="button">⚙ Prioridades</button><button id="closeResults" class="close-results" type="button" aria-label="Voltar para a pesquisa" title="Voltar para a pesquisa">×</button></div></div>
+      <div id="punhoBanner" class="punho-banner hidden"><span class="punho-ico">★</span><span id="punhoBannerText"></span><button id="punhoBack" class="secondary" type="button">← Voltar para a malha</button></div>
+      <div id="punhoBar" class="punho-bar hidden"><span class="punho-ico">🧵</span><span id="punhoBarText"></span><span class="spacer"></span><button id="punhoCancel" class="text-button" type="button">Cancelar</button><button id="punhoGo" class="primary" type="button" disabled>Buscar punho →</button></div>
+      <div class="filter-strip">
+        <button id="filterToggle" class="secondary filter-toggle" type="button" aria-expanded="false">⚲ Mais filtros</button>
+        <label class="filter-field filter-address"><span>Endereço</span><select id="addressFilter"><option value="">Todos os endereços</option></select></label>
+        <label class="filter-field filter-selector"><span>Filtrar por</span>
+          <select id="filterType">
+            <option value="RG">RG</option>
+            <option value="Z5_ENDEREC">Parte do endereço</option>
+            <option value="Z5_OP">OP</option>
+            <option value="Z5_PARTIDA">Partida</option>
+            <option value="Z5_ALMOXA">Armazém</option>
+            <option value="Z6_GRUPO">Grupo de produto</option>
+          </select>
+        </label>
+        <label class="filter-field filter-entry"><span id="filterValueLabel">RG</span>
+          <input id="filterValue" placeholder="Digite para filtrar…" autocomplete="off">
+        </label>
+        <span id="filterCount" class="filter-count">0 rolos</span>
+        <button id="clearFilters" class="clear-filter" type="button">Limpar</button>
+        <button id="printBtn" class="secondary export-btn" type="button" disabled>🖨 Imprimir relatório</button>
+      </div>
+      <div class="table-panel"><div class="table-wrap"><table><thead><tr><th id="selCol" class="sel-col hidden"><input type="checkbox" id="selAll" aria-label="Selecionar todos os grupos"></th><th>Prioridade</th><th>OP</th><th>Partida</th><th>Descrição</th><th class="num-cell">Rolos</th><th>Entrada mais recente</th><th class="num-cell">Peso total</th><th class="num-cell">Gramatura</th><th class="num-cell">CMC</th><th>Endereços</th><th></th></tr></thead><tbody id="stockBody"></tbody></table></div><div id="emptyStock" class="empty hidden">Nenhum rolo encontrado com esses filtros.</div></div>
+      <div id="stats" class="hidden"></div>
+    </section>
+  </main>
+</div>
+
+    <section id="priorityModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="priorityTitle">
+      <div class="priority-modal">
+        <div class="modal-heading"><div><span class="section-kicker">CONFIGURAÇÃO LOCAL</span><h2 id="priorityTitle">Regras de gramatura</h2><p>A gramatura ideal vem automaticamente do cadastro de grupos do Protheus (SBM · BM_GRAMTIN), com tolerância de ±7%. Use esta planilha só para ajustar: uma regra aqui (por grupo ou código do produto) substitui a do Protheus, e uma regra desativada desliga a do Protheus para aquele grupo.</p></div><button id="closePriorityModal" class="close-results" type="button" aria-label="Fechar">×</button></div>
+        <div class="priority-toolbar"><span>Planilha por grupo: <b id="priorityFilePath">dados/CONFIG_PRIORIDADE.csv</b></span><span class="toolbar-buttons"><button id="importSbm" class="secondary" type="button">⇣ Importar do Protheus (SBM)</button><button id="reloadPriority" class="secondary" type="button">↻ Recarregar planilha</button><button id="openPriorityFile" class="secondary" type="button">↗ Abrir no Excel</button></span></div>
+        <div id="priorityWarnings" class="priority-warnings hidden" role="alert"></div>
+        <div class="priority-table-wrap"><table class="priority-table"><thead><tr><th>Grupo</th><th>Descrição</th><th>Gramatura ideal (g/m²)</th><th>Tolerância (%)</th><th>Ativa</th><th></th></tr></thead><tbody id="priorityRows"></tbody></table></div>
+        <div class="priority-actions"><button id="addPriorityRow" class="secondary" type="button">＋ Adicionar grupo</button><span class="spacer"></span><button id="cancelPriority" class="text-button" type="button">Cancelar</button><button id="savePriority" class="primary" type="button">Salvar regras</button></div>
+        <p class="priority-help">As regras são gravadas na planilha local indicada acima (CSV com separador “;”). Você pode editar aqui ou no Excel, mas feche o arquivo no Excel antes de salvar pelo NOVA. Depois de editar no Excel, salve, feche e use “Recarregar planilha”.</p>
+      </div>
+    </section>
+    <section id="reportModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="reportHeading">
+      <div class="report-modal">
+        <div class="modal-heading"><div><span class="section-kicker">IMPRESSÃO</span><h2 id="reportHeading">Imprimir relatório</h2><p id="reportInfo"></p></div><button id="closeReport" class="close-results" type="button" aria-label="Fechar">×</button></div>
+        <div class="report-body">
+          <aside class="report-options">
+            <div class="rgroup"><h3>Conteúdo</h3>
+              <label class="rf"><span>Título do relatório</span><input id="rTitle" maxlength="80"></label>
+              <label class="rf"><span>Quais posições</span><select id="rScope"><option value="all">Todas as posições exibidas (respeita o filtro)</option><option value="ideal">Somente aprovados para amostra</option><option value="other">Somente não indicados para amostra</option></select></label>
+              <label class="rf"><span>Ordenar por</span><select id="rSort"><option value="atual">Ordem da tela (prioridade)</option><option value="op">OP / Partida (agrupado)</option><option value="endereco">Endereço</option><option value="entrada">Data de entrada (mais recente)</option><option value="peso">Peso (maior primeiro)</option><option value="rg">RG</option></select></label>
+            </div>
+            <div class="rgroup"><h3>Páginas</h3>
+              <label class="rf"><span>Páginas a imprimir</span><input id="rPages" placeholder="Todas — ou ex.: 1-3, 5"></label>
+              <small id="rPagesMsg" class="rhint"></small>
+              <label class="rf"><span>Linhas por página</span><input id="rRows" type="number" min="5" step="1" placeholder="Automático"></label>
+            </div>
+            <div class="rgroup"><h3>Papel</h3>
+              <div class="rrow">
+                <label class="rf"><span>Orientação</span><select id="rOrient"><option value="landscape">Paisagem</option><option value="portrait">Retrato</option></select></label>
+                <label class="rf"><span>Papel</span><select id="rPaper"><option value="A4">A4</option><option value="Carta">Carta</option><option value="A3">A3</option></select></label>
+              </div>
+              <div class="rrow">
+                <label class="rf"><span>Letra</span><select id="rFont"><option value="small">Pequena</option><option value="normal">Normal</option><option value="large">Grande</option></select></label>
+                <label class="rf"><span>Margens</span><select id="rMargin"><option value="6">Estreitas</option><option value="10">Normais</option><option value="15">Largas</option></select></label>
+              </div>
+            </div>
+            <div class="rgroup"><h3>Aparência</h3>
+              <label class="rc"><input type="checkbox" id="oSummary"> Resumo no início (posições, peso, endereços)</label>
+              <label class="rc"><input type="checkbox" id="oFilters"> Mostrar filtro aplicado</label>
+              <label class="rc"><input type="checkbox" id="oPageNo"> Numeração “Página X de Y”</label>
+              <label class="rc"><input type="checkbox" id="oTotal"> Linha de total (peso)</label>
+              <label class="rc"><input type="checkbox" id="oZebra"> Linhas alternadas</label>
+              <label class="rc"><input type="checkbox" id="oGrid"> Grade completa</label>
+              <label class="rc"><input type="checkbox" id="oEco"> Modo econômico (preto e branco)</label>
+            </div>
+            <div class="rgroup"><h3>Colunas</h3><div id="rCols" class="rcols"></div></div>
+            <button id="rReset" class="text-button" type="button">Restaurar padrão</button>
+          </aside>
+          <div class="report-preview"><iframe id="reportFrame" title="Pré-visualização do relatório"></iframe></div>
+        </div>
+        <div class="priority-actions"><button id="reportCsv" class="secondary" type="button">↓ Exportar CSV</button><span class="spacer"></span><small class="rhint">Na janela de impressão, desmarque “Cabeçalhos e rodapés” para remover data/endereço do navegador.</small><button id="reportCancel" class="text-button" type="button">Fechar</button><button id="reportPrint" class="primary" type="button">🖨 Imprimir</button></div>
+      </div>
+    </section>
+<section id="groupModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="groupTitle">
+  <div class="group-modal">
+    <div class="modal-heading"><div><span class="section-kicker">ROLOS DO GRUPO</span><h2 id="groupTitle"></h2><p id="groupSub"></p></div><button id="closeGroup" class="close-results" type="button" aria-label="Fechar">×</button></div>
+    <div id="groupStats" class="group-stats"></div>
+    <div id="groupDefect" class="group-defect hidden" role="alert"></div>
+    <div id="groupTable" class="group-table"></div>
+    <div class="priority-actions"><button id="defectBtn" class="secondary defect-btn" type="button">⚠ Indicar defeito</button><button id="groupPrev" class="secondary" type="button">‹ Grupo anterior</button><button id="groupNext" class="secondary" type="button">Próximo grupo ›</button><span class="spacer"></span><button id="groupClose2" class="primary" type="button">Fechar</button></div>
+  </div>
+</section>
+<section id="defectModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="defectTitle">
+  <div class="defect-modal">
+    <div class="modal-heading"><div><span class="section-kicker defect-kicker">MALHA COM DEFEITO</span><h2 id="defectTitle">Indicar defeito</h2><p id="defectSub"></p></div><button id="closeDefect" class="close-results" type="button" aria-label="Fechar">×</button></div>
+    <p class="defect-label">Qual é o problema? (pode marcar mais de um)</p>
+    <div id="defectOptions" class="defect-options"></div>
+    <div id="defectOtherWrap" class="field hidden"><label for="defectOther">Descreva o defeito (Outros)</label><input id="defectOther" maxlength="80" autocomplete="off"></div>
+    <div class="field"><label for="defectObs">Observação (opcional)</label><textarea id="defectObs" maxlength="300" rows="3"></textarea></div>
+    <p class="defect-note">A marcação vale para todos os rolos desta OP deste produto. <span id="defectInfo"></span> <button id="defectOpenFile" class="link-btn" type="button">Abrir planilha</button> <button id="defectImport" class="link-btn hidden" type="button">Importar planilha</button><input id="defectFile" type="file" accept=".csv,text/csv" class="hidden"></p>
+    <div id="defectError" class="form-error hidden" role="alert"></div>
+    <div class="priority-actions"><button id="defectRemove" class="text-button danger hidden" type="button">Remover marcação</button><span class="spacer"></span><button id="defectCancel" class="text-button" type="button">Cancelar</button><button id="defectSave" class="primary danger-btn" type="button">Salvar na planilha</button></div>
+  </div>
+</section>
+<section id="phoneModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="phoneTitle">
+  <div class="phone-modal">
+    <div class="modal-heading"><div><span class="section-kicker">CELULAR</span><h2 id="phoneTitle">Usar o NOVA no celular</h2></div><button id="closePhone" class="close-results" type="button" aria-label="Fechar">×</button></div>
+    <div id="phoneOn" class="hidden">
+      <p class="phone-text">Com o celular no <b>mesmo Wi-Fi da empresa</b>, aponte a câmera para o código ou digite o endereço no navegador:</p>
+      <div id="phoneQr" class="phone-qr"></div>
+      <div id="phoneUrls" class="phone-urls"></div>
+      <ol class="phone-steps"><li>Entre com seu usuário do Protheus e marque <b>Mantenha-me conectado</b>.</li><li>Para virar um ícone: <b>Android/Chrome</b> ⋮ → <i>Adicionar à tela inicial</i>; <b>iPhone/Safari</b> ⎋ → <i>Adicionar à Tela de Início</i>.</li><li>Este computador precisa ficar ligado com a janela do NOVA aberta.</li></ol>
+    </div>
+    <div id="phoneOff" class="hidden">
+      <p class="phone-text">O NOVA está aberto só para este computador. Para liberar os celulares:</p>
+      <ol class="phone-steps"><li>Feche a janela preta do servidor do NOVA.</li><li>Abra <b>INICIAR_NOVA_REDE.bat</b> (em vez de INICIAR_NOVA.bat).</li><li>Se o Windows perguntar, clique em <b>Permitir</b> para <i>Redes privadas</i>.</li><li>Volte aqui em <b>📱 Usar no celular</b> para ver o código QR.</li></ol>
+    </div>
+  </div>
+</section>
+<section id="historyModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+  <div class="history-modal">
+    <div class="modal-heading"><div><span class="section-kicker">SUAS CONSULTAS</span><h2 id="historyTitle">Histórico de pesquisas</h2><p id="historyCount"></p></div><button id="closeHistory" class="close-results" type="button" aria-label="Fechar">×</button></div>
+    <input id="historyFilter" class="history-filter" placeholder="Filtrar por código ou descrição" autocomplete="off" aria-label="Filtrar histórico">
+    <div id="historyList" class="history-list"></div>
+    <div class="priority-actions"><button id="clearHistory" class="text-button danger" type="button">Limpar histórico</button><span class="spacer"></span><button id="historyClose2" class="secondary" type="button">Fechar</button></div>
+  </div>
+</section>
+<script src="config.js"></script>
+<script src="protheus.js"></script>
+<script src="renderer.js"></script>
+<script src="relatorio.js"></script>
+<script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
+</body></html>
