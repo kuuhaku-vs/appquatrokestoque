@@ -25,11 +25,11 @@
     <div id="apiUrlWrap" class="field hidden"><label for="apiUrl">Endereço da API do Protheus</label><input id="apiUrl" type="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://servidor:porta/rest"></div>
     <div class="field"><label for="username">Usuário</label><input id="username" name="username" autocomplete="username" spellcheck="false" autocapitalize="off" required></div>
     <div class="field"><label for="password">Senha</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><button type="button" id="togglePassword" class="eye-btn" aria-label="Mostrar senha" title="Mostrar senha">◉</button></div></div>
-    <label class="remember"><input type="checkbox" id="remember"> <span>Mantenha-me conectado<small>Por 30 dias, enquanto o NOVA estiver aberto</small></span></label>
+    <label class="remember"><input type="checkbox" id="remember"> <span>Mantenha-me conectado</span></label>
     <button id="connectBtn" class="primary big-btn" type="submit">Entrar</button>
     <div id="loginError" class="form-error hidden" role="alert"></div>
   </form>
-  <p class="screen-foot" id="apiHost"></p>
+  <p class="screen-foot" id="apiHost">NOVA - Consulta de Estoque</p>
 </div>
 
 <!-- 2) PESQUISA -->
@@ -41,10 +41,10 @@
   <form id="codeForm" class="center-card search-card" novalidate>
     <span class="nova-fx nova-corner tl" aria-hidden="true"></span><span class="nova-fx nova-corner br" aria-hidden="true"></span><span class="nova-fx nova-ring" aria-hidden="true"></span><span class="nova-fx nova-core" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span>
     <div id="activeFolderBar" class="active-folder hidden"><span>📁 Pasta <b id="activeFolderName"></b></span><button type="button" id="activeFolderOpen" class="link-btn">Ver pasta</button><button type="button" id="activeFolderEnd" class="link-btn">Encerrar</button></div>
-    <h1>Consultar material</h1>
+    <h1>Consultar Material</h1>
     <p class="card-sub">Digite o código do produto com 12 caracteres.</p>
     <div class="code-wrap">
-      <input id="codeInput" class="code-input" maxlength="12" autocomplete="off" spellcheck="false" autocapitalize="characters" placeholder="Ex: 40M090900010" aria-label="Código do produto (12 caracteres)">
+      <input id="codeInput" class="code-input" maxlength="12" autocomplete="off" spellcheck="false" autocapitalize="characters" placeholder="Código..." aria-label="Código do produto (12 caracteres)">
       <span id="codeCount" class="code-count">0/12</span>
     </div>
     <button id="codeBtn" class="primary big-btn" type="submit" disabled>Pesquisar <b>→</b></button>
@@ -189,9 +189,9 @@
 <section id="foldersModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="foldersTitle">
   <div class="folders-modal">
     <div id="foldersList">
-      <div class="modal-heading"><div><span class="section-kicker">SEPARAÇÃO</span><h2 id="foldersTitle">Pastas</h2><p id="foldersHint">Crie uma pasta, pesquise o código e salve as OPs que vai pegar. Depois abra a pasta no celular e marque os rolos conforme for pegando.</p></div><button id="closeFolders" class="close-results" type="button" aria-label="Fechar">×</button></div>
+      <div class="modal-heading"><div><span class="section-kicker">SEPARAÇÃO</span><h2 id="foldersTitle">Pastas</h2><p id="foldersHint">Crie uma pasta, pesquise o código e salve.</p></div><button id="closeFolders" class="close-results" type="button" aria-label="Fechar">×</button></div>
       <div id="sharedBox" class="shared-box"></div>
-      <form id="newFolderForm" class="new-folder" novalidate><input id="newFolderName" maxlength="40" placeholder="Nome da pasta (ex.: cartela)" autocomplete="off" aria-label="Nome da nova pasta"><button class="primary" type="submit">＋ Criar pasta</button></form>
+      <form id="newFolderForm" class="new-folder" novalidate><input id="newFolderName" maxlength="40" placeholder="Nome da Pasta..." autocomplete="off" aria-label="Nome da nova pasta"><button class="primary" type="submit">＋ Criar pasta</button></form>
       <div id="folderPickMsg" class="folder-pick hidden"></div>
       <div id="foldersItems" class="folders-items"></div>
       <div class="priority-actions"><button id="foldersImport" class="text-button" type="button">↑ Importar planilha</button><input id="foldersFile" type="file" accept=".csv,text/csv" class="hidden"><span class="spacer"></span><button id="foldersClose2" class="secondary" type="button">Fechar</button></div>

@@ -156,37 +156,50 @@ function fxVars(card) {
   card.style.setProperty('--fx-x', `${(r.width - c) / 2}px`);
   card.style.setProperty('--fx-y', `${(r.height - c) / 2}px`);
 }
+const fxOn = card => !REDUCED_MOTION && card && card.offsetParent;
+// fecha o cartão na estrela; loading = a estrela fica pulsando (consulta em andamento)
+async function novaClose(card, { loading = false } = {}) {
+  if (!fxOn(card)) return;
+  fxVars(card);
+  card.classList.add('fx-close');
+  await wait(520);
+  card.classList.add('fx-core');
+  if (loading) card.classList.add('fx-loading');
+  await wait(380);
+}
+// abre o cartão a partir da estrela (se não estiver fechado, começa fechado sem animar)
+async function novaOpen(card, { fromWidth } = {}) {
+  if (!fxOn(card)) { if (card) card.classList.remove('fx-close', 'fx-core', 'fx-loading', 'fx-open'); return; }
+  if (!card.classList.contains('fx-close')) { card.classList.add('fx-instant', 'fx-close', 'fx-core'); }
+  card.classList.remove('fx-loading');
+  const target = card.getBoundingClientRect().width;
+  if (fromWidth) card.style.width = fromWidth + 'px';
+  fxVars(card);
+  void card.offsetWidth;
+  card.classList.remove('fx-instant');
+  if (fromWidth) requestAnimationFrame(() => { card.style.width = target + 'px'; });
+  await wait(fromWidth ? 260 : 160);
+  card.classList.remove('fx-core');
+  fxVars(card);
+  card.classList.add('fx-open');
+  card.classList.remove('fx-close');
+  await wait(620);
+  card.classList.remove('fx-open');
+  card.style.width = '';
+}
+function novaReset(card) { if (card) { card.classList.remove('fx-close', 'fx-core', 'fx-loading', 'fx-open', 'fx-instant'); card.style.width = ''; } }
 async function novaTransition(fromCard, toCard, swap) {
-  if (REDUCED_MOTION || novaFxRunning || !fromCard.offsetParent) { swap(); return; }
+  if (novaFxRunning || !fxOn(fromCard)) { swap(); return; }
   novaFxRunning = true;
   try {
     const fromW = fromCard.getBoundingClientRect().width;
-    fxVars(fromCard);
-    fromCard.classList.add('fx-close');                 // conteúdo some + cantos vão ao centro
-    await wait(520);
-    fromCard.classList.add('fx-core');                  // estrela + pulso
-    await wait(380);
-    swap();                                             // troca de tela com o cartão ainda "fechado"
-    toCard.classList.add('fx-instant', 'fx-close', 'fx-core');
-    const target = toCard.getBoundingClientRect().width;
-    toCard.style.width = fromW + 'px';
-    fxVars(toCard);
-    void toCard.offsetWidth;
-    toCard.classList.remove('fx-instant');
-    fromCard.classList.remove('fx-close', 'fx-core');
-    requestAnimationFrame(() => { toCard.style.width = target + 'px'; });
-    await wait(260);
-    toCard.classList.remove('fx-core');
-    fxVars(toCard);
-    toCard.classList.add('fx-open');                    // cantos voltam e o conteúdo aparece
-    toCard.classList.remove('fx-close');
-    await wait(620);
-  } finally {
-    toCard.classList.remove('fx-open', 'fx-close', 'fx-core', 'fx-instant');
-    toCard.style.width = '';
-    novaFxRunning = false;
-  }
+    await novaClose(fromCard);
+    swap();
+    novaReset(fromCard);
+    await novaOpen(toCard, { fromWidth: fromW });
+  } finally { novaReset(toCard); novaFxRunning = false; }
 }
+function popIn(el) { if (REDUCED_MOTION || !el) return; el.classList.remove('fx-pop'); void el.offsetWidth; el.classList.add('fx-pop'); setTimeout(() => el.classList.remove('fx-pop'), 700); }
 function goLogin(text) {
   $('stockSection').classList.add('hidden');
   setConnection(false); showView('login'); loginError(text || '');
@@ -460,7 +473,7 @@ function updateFolderUi() {
   $('foldersBtn2Label').textContent = f ? f.name : 'Pastas';
   $('foldersBtn2').classList.toggle('active', !!f);
   const h = document.querySelector('#codeForm h1');
-  if (h) h.textContent = f ? 'Qual código deseja procurar?' : 'Consultar material';
+  if (h) h.textContent = f ? 'Qual código deseja procurar?' : 'Consultar Material';
   updateSaveBtn();
 }
 function updateSaveBtn() {
@@ -537,13 +550,17 @@ function renderSharedBox() {
   const fixedUrl = !!(window.NOVA_CONFIG && window.NOVA_CONFIG.pastasUrl);
   if (isShared()) {
     box.className = 'shared-box on';
-    const t = document.createElement('span');
-    t.textContent = `🟢 Compartilhadas com a equipe (Planilha Google)${folderSyncAt ? ' · atualizado ' + new Date(folderSyncAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''}`;
+    const pill = document.createElement('button'); pill.type = 'button'; pill.className = 'conn-pill';
+    pill.innerHTML = '<i></i>Conectado'; pill.title = `Pastas compartilhadas com a equipe (Planilha Google)${folderSyncAt ? ' · atualizado ' + new Date(folderSyncAt).toLocaleTimeString('pt-BR') : ''}`;
+    const menu = document.createElement('div'); menu.className = 'conn-menu hidden';
+    const info = document.createElement('small'); info.textContent = `Planilha Google${folderSyncAt ? ' · ' + new Date(folderSyncAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}`;
     const up = document.createElement('button'); up.type = 'button'; up.className = 'link-btn'; up.textContent = '↻ Atualizar';
     up.onclick = async () => { if (await syncFolders(false)) { rerenderFolders(); updateFolderUi(); } };
-    const off = document.createElement('button'); off.type = 'button'; off.className = 'link-btn'; off.textContent = 'Desconectar';
+    const off = document.createElement('button'); off.type = 'button'; off.className = 'link-btn danger-link'; off.textContent = 'Desconectar';
     off.onclick = () => { if (!confirm('Desconectar este aparelho das pastas compartilhadas? (nada é apagado da planilha)')) return; lsDel(PKEY_KEY); if (!fixedUrl) lsDel(PURL_KEY); lsDel(FCACHE_KEY); stopFolderPoll(); renderFoldersList(); updateFolderUi(); };
-    box.append(t, up, off);
+    menu.append(info, up, off);
+    pill.onclick = () => menu.classList.toggle('hidden');
+    box.append(pill, menu);
     const local = localFolders().folders.filter(f => f.items.length);
     if (local.length) {
       const mig = document.createElement('button'); mig.type = 'button'; mig.className = 'secondary migrate-btn';
@@ -683,10 +700,10 @@ function renderFolder() {
   byProd.forEach((items, prod) => {
     const sec = document.createElement('section'); sec.className = 'fp';
     const h = document.createElement('div'); h.className = 'fp-head';
-    const t = document.createElement('span'); t.innerHTML = '';
+    const t = document.createElement('span');
+    const ds = document.createElement('strong'); ds.textContent = items[0].descricao || 'Produto';
     const code = document.createElement('b'); code.textContent = prod;
-    const ds = document.createElement('small'); ds.textContent = items[0].descricao || '';
-    t.append(code, ds);
+    t.append(ds, code);
     const again = document.createElement('button'); again.type = 'button'; again.className = 'icon-btn'; again.textContent = '🔍'; again.title = 'Pesquisar este código de novo'; again.setAttribute('aria-label', `Pesquisar ${prod} de novo`);
     again.onclick = () => { closeFolders(); rerun(prod); };
     h.append(t, again); sec.append(h);
@@ -919,6 +936,10 @@ async function search(codeArg, from = 'search') {
   const label = btn.innerHTML;
   searching = true; btn.disabled = true; $('codeInput').disabled = true; $('term').disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Consultando Protheus…';
+  // na tela de pesquisa: o cartão fecha na estrela, que pulsa enquanto o Protheus responde
+  const card = $('codeForm'), useFx = from === 'search' && fxOn(card);
+  const closing = useFx ? novaClose(card, { loading: true }) : Promise.resolve();
+  let found = false;
   try {
     const [d] = await Promise.all([
       api(`/api/stock?code=${encodeURIComponent(code)}`, {}, SEARCH_TIMEOUT_MS),
@@ -926,6 +947,7 @@ async function search(codeArg, from = 'search') {
       loadDefects().catch(() => {})
     ]);
     const rows = Array.isArray(d.rows) ? d.rows : [];
+    await closing;
     if (!rows.length) {
       const dg = d.diagnostic || {};
       const tried = (dg.attempts || []).map(a => `${a.label}: ${a.error ? 'erro' : a.rows + ' linha(s)'}`).join(' · ');
@@ -938,16 +960,21 @@ async function search(codeArg, from = 'search') {
     }
     const desc = String(d.product?.description || field(rows[0], 'Z9_DESC') || '').trim();
     resetPunho();
+    found = true;
     showView('results'); $('term').value = code;
     stock({ code, description: desc }, rows);
+    if (useFx) { novaReset(card); popIn($('stockSection')); }
     addHistory(code, desc, rows.length, rows.filter(priorityMatch).length);
     if (d.mode === 'prefixo') message(`Nenhum código exatamente igual a ${code}; exibindo códigos que começam com ele.`, 'info');
     if (d.notice) message(d.notice, 'error');
     if (d.truncated) message('Atenção: a consulta atingiu o limite de páginas/tempo e pode estar incompleta. Tente novamente.', 'error');
   } catch (e) {
-    if (e.status === 401 || e.status === 403) { requireLogin(); return; }
+    await closing;
+    if (e.status === 401 || e.status === 403) { novaReset(card); requireLogin(); return; }
     message(e.message || 'Falha ao consultar o estoque no Protheus.', 'error');
   } finally {
+    if (useFx && !found && document.body.dataset.view === 'search') await novaOpen(card); // sem resultado: o cartão abre de novo
+    else if (useFx && !found) novaReset(card);
     searching = false; btn.innerHTML = label;
     $('codeInput').disabled = false; $('term').disabled = false; $('searchBtn').disabled = false;
     updateCodeInput();
@@ -1458,9 +1485,8 @@ setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
   try { await loadPriority(); } catch (e) { console.warn(e); }
   try {
     const st = await api('/api/status');
-    if (st.api) $('apiHost').textContent = `Protheus: ${st.api}`;
     if (st.needApiUrl && $('apiUrlWrap')) $('apiUrlWrap').classList.remove('hidden');
-    if (st.connected) { setConnection(true, st.username); $('username').value = st.username || ''; goSearch(); }
-    else goLogin('');
+    if (st.connected) { setConnection(true, st.username); $('username').value = st.username || ''; goSearch(); novaOpen($('codeForm')); }
+    else { goLogin(''); novaOpen($('loginForm')); }
   } catch (e) { goLogin(e.message); }
 })();
