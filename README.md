@@ -23,7 +23,18 @@ O celular consulta o Protheus pela internet (HTTPS), em qualquer rede: Wi-Fi 4K-
 1. Toque em **📁 Pastas**, dê um nome (ex.: `cartela`) e **Criar pasta**. A pasta fica **ativa** e o NOVA pergunta "Qual código deseja procurar?".
 2. Pesquise o código, abra a OP (**Exibir mais**) e toque em **💾 Salvar em cartela** (à esquerda de Indicar defeito). Salva a OP com todos os rolos; quando a OP está em mais de um endereço, eles ficam juntos, ex.: `08196 - 01023 - 04106`. Tocar de novo numa OP já salva permite atualizar os rolos ou tirar da pasta.
 3. Para buscar: **📁 Pastas → cartela**. Cada OP mostra os endereços e os rolos com uma caixinha: marque conforme for pegando (riscado em verde). **A pegar / Todos / Pegos** filtram a lista; a barra mostra o progresso.
-4. As pastas ficam **neste aparelho**. **Exportar planilha** baixa um CSV; no outro aparelho, **Pastas → Importar planilha** traz a pasta (com o que já foi pego).
+4. Com a **Planilha Google** conectada (abaixo), as pastas são **compartilhadas** entre todos os usuários; sem ela, ficam só no aparelho. **Exportar/Importar planilha** (CSV) continua disponível.
+
+## Pastas compartilhadas (Planilha Google) — configurar uma vez
+Sem isso, cada aparelho tem as suas pastas. Com isso, **todos os usuários e aparelhos veem as mesmas pastas e o mesmo "peguei"** (a lista se atualiza sozinha a cada 20 s).
+1. Entre em https://sheets.google.com com uma conta Google e crie uma **planilha em branco** (ex.: `NOVA Pastas`).
+2. Menu **Extensões → Apps Script**. Apague o que estiver no editor e cole todo o arquivo **`PLANILHA_PASTAS_Code.gs`**.
+3. Na linha `const CHAVE = 'TROQUE-ESTA-CHAVE';` troque pelo **código da equipe** (ex.: `'quatrok-cd-2026'`). Clique no disquete (Salvar).
+4. **Implantar → Nova implantação** → engrenagem ⚙ → **App da Web**. *Executar como:* **Eu**; *Quem pode acessar:* **Qualquer pessoa** → **Implantar** → autorize com a conta Google (se aparecer "app não verificado": *Avançado → Acessar*). Copie o **URL do app da Web** (termina em `/exec`).
+5. Em cada aparelho: **📁 Pastas** → cole o URL e o código da equipe → **Conectar**. (Se o URL for colocado no `config.js`, em `pastasUrl`, cada aparelho só digita o código.)
+6. Pastas que já estavam só num aparelho: depois de conectar, toque em **⇪ Enviar pastas deste aparelho para a planilha**.
+- As abas **Pastas** e **Rolos** são criadas sozinhas na planilha (dá para olhar e filtrar; não apague colunas nem a linha 1).
+- O código da equipe nunca fica no GitHub: só no Apps Script (privado) e em cada aparelho. Quem não tem o código não lê nem grava.
 
 ## Como funciona nesta versão
 - Mesmas telas e regras do NOVA do computador: grupos por OP/Partida, prioridade (armazém 93 / AM01 / AM02, aprovado para amostra, CMC, entrada), punhos por OP, gramatura ideal da SBM (BM_GRAMTIN).

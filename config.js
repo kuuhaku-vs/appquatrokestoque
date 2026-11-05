@@ -5,5 +5,8 @@
 // tenantId: empresa,filial usadas nas consultas.
 window.NOVA_CONFIG = {
   apiUrl: 'https://protheus.quatroktextil.com.br:6632/rest05',
-  tenantId: '01,14'
+  tenantId: '01,14',
+  // pastasUrl: "URL do app da Web" da Planilha Google das pastas compartilhadas (Apps Script).
+  //   O código da equipe NÃO fica aqui: cada aparelho digita uma vez em Pastas.
+  pastasUrl: ''
 };
