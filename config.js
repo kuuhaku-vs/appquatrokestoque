@@ -8,5 +8,5 @@ window.NOVA_CONFIG = {
   tenantId: '01,14',
   // pastasUrl: "URL do app da Web" da Planilha Google das pastas compartilhadas (Apps Script).
   //   O código da equipe NÃO fica aqui: cada aparelho digita uma vez em Pastas.
-  pastasUrl: ''
+  pastasUrl: 'https://script.google.com/macros/s/AKfycbyHBouPxpAfFQeOYGLMdvaqpvRF7XhZSJxCqeY13T_zXFauD8SS_DCGdPQt0hQpfw/exec'
 };
