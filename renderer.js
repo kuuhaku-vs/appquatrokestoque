@@ -287,7 +287,8 @@ async function bioEnable() {
     else message(`Não foi possível ativar o ${BIO_LABEL}: ${e.message}`, 'error');
   } finally { btn.disabled = false; }
 }
-function bioDone() { lastCreds = null; updateBioUi(); message(`${BIO_LABEL} ativado neste aparelho. Na próxima vez, toque em "Entrar com ${BIO_LABEL}".`, 'success'); }
+function bioDone() { lastCreds = null; updateBioUi(); message(`${BIO_LABEL} ativado neste aparelho. Na próxima vez, é só tocar no campo de senha.`, 'success'); }
+let bioSkipField = false; // depois de cancelar, o próximo toque na senha deixa digitar
 async function bioLogin() {
   const d = bioData(); if (!d) return;
   const btn = $('faceBtn'); if (btn.disabled) return;
@@ -300,9 +301,15 @@ async function bioLogin() {
     $('username').value = creds.u;
     await login(null, creds);
   } catch (e) {
-    if (e.name === 'NotAllowedError' || e.name === 'AbortError') loginError(`${BIO_LABEL} cancelado. Toque de novo ou entre com usuário e senha.`);
+    bioSkipField = true;
+    if (e.name === 'NotAllowedError' || e.name === 'AbortError') loginError(`${BIO_LABEL} cancelado. Digite a senha ou toque em "Entrar com ${BIO_LABEL}".`);
     else loginError(`Não foi possível entrar com ${BIO_LABEL}. Entre com usuário e senha.`);
   } finally { btn.disabled = false; }
+}
+// tocar no campo de senha com o Face ID ativado: abre o Face ID em vez do teclado
+function bioFromPassword(e) {
+  if (!bioAvailable || !bioData() || bioSkipField || $('password').value) return;
+  e.preventDefault(); $('password').blur(); bioLogin();
 }
 function bioRemove() {
   if (!confirm(`Remover o ${BIO_LABEL} deste aparelho? Você volta a entrar com usuário e senha.`)) return;
@@ -332,7 +339,7 @@ async function login(e, bioCreds) {
   } finally { $('connectBtn').disabled = false; $('connectBtn').textContent = 'Entrar'; }
 }
 async function logout() {
-  lastCreds = null; pendingBioId = null;
+  lastCreds = null; pendingBioId = null; bioSkipField = false;
   try { await api('/api/logout', { method: 'POST', body: '{}' }); } catch { /* sessão local já descartada */ }
   currentRows = []; visibleRows = [];
   if (document.body.dataset.view === 'search') await novaTransition($('codeForm'), $('loginForm'), () => goLogin(''));
@@ -1557,7 +1564,8 @@ $('clearHistory').onclick = () => { if (!getHistory().length || !confirm('Apagar
 $('historyModal').addEventListener('mousedown', e => { if (e.target === $('historyModal')) closeHistory(); });
 $('addressFilter').onchange = applyFilters;
 $('punhoBtn').onclick = togglePunhoMode;
-$('faceBtn').onclick = bioLogin; $('faceEnable').onclick = bioEnable; $('faceRemove').onclick = bioRemove;
+$('faceBtn').onclick = bioLogin;
+$('password').addEventListener('click', bioFromPassword); $('faceEnable').onclick = bioEnable; $('faceRemove').onclick = bioRemove;
 $('faceLater').onclick = () => { lsSet(BIO_SKIP, true); lastCreds = null; pendingBioId = null; updateBioUi(); };
 $('foldersBtn').onclick = openFolders; $('foldersBtn2').onclick = () => { const f = activeFolder(); f ? openFolder(f.id) : openFolders(); };
 $('activeFolderOpen').onclick = () => { const f = activeFolder(); if (f) openFolder(f.id); };
