@@ -199,6 +199,17 @@ async function novaTransition(fromCard, toCard, swap) {
     await novaOpen(toCard, { fromWidth: fromW });
   } finally { novaReset(toCard); novaFxRunning = false; }
 }
+// estrela pulsando no centro enquanto a pesquisa da barra do topo roda (resultados desfocados)
+function resultsBusy(on) {
+  let l = $('novaLoader');
+  if (!l) {
+    l = document.createElement('div'); l.id = 'novaLoader'; l.className = 'nova-loader hidden'; l.setAttribute('aria-hidden', 'true');
+    l.innerHTML = '<span class="nova-ring"></span><span class="nova-core"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span>';
+    document.body.append(l);
+  }
+  l.classList.toggle('hidden', !on);
+  $('stockSection').classList.toggle('fx-busy', on);
+}
 function popIn(el) { if (REDUCED_MOTION || !el) return; el.classList.remove('fx-pop'); void el.offsetWidth; el.classList.add('fx-pop'); setTimeout(() => el.classList.remove('fx-pop'), 700); }
 function goLogin(text) {
   $('stockSection').classList.add('hidden');
@@ -322,8 +333,8 @@ function locationTag(r) {
   if (String(field(r, 'Z5_ALMOXA') ?? '').trim() === PRIORITY_WAREHOUSE) parts.push('Arm. 93');
   const ad = normalizeFilter(field(r, 'Z5_ENDEREC')), pre = PRIORITY_ADDR_PREFIXES.find(p => ad.startsWith(p));
   if (pre) parts.push(pre);
-  const t = document.createElement('span'); t.className = 'loc-tag'; t.textContent = '📍 ' + parts.join(' · ');
-  t.title = 'Local prioritário (armazém 93 / endereços AM01 e AM02)'; return t;
+  const t = document.createElement('span'); t.className = 'loc-tag'; t.textContent = '📍';
+  t.title = `Local prioritário: ${parts.join(' · ')} (armazém 93 / endereços AM01 e AM02)`; t.setAttribute('aria-label', t.title); return t;
 }
 
 /* --------------------------- malhas com defeito --------------------------- */
@@ -938,7 +949,9 @@ async function search(codeArg, from = 'search') {
   btn.innerHTML = '<span class="spinner"></span> Consultando Protheus…';
   // na tela de pesquisa: o cartão fecha na estrela, que pulsa enquanto o Protheus responde
   const card = $('codeForm'), useFx = from === 'search' && fxOn(card);
-  const closing = useFx ? novaClose(card, { loading: true }) : Promise.resolve();
+  const useBusy = from === 'results' && !REDUCED_MOTION;
+  if (useBusy) resultsBusy(true);
+  const closing = useFx ? novaClose(card, { loading: true }) : useBusy ? wait(700) : Promise.resolve();
   let found = false;
   try {
     const [d] = await Promise.all([
@@ -964,6 +977,7 @@ async function search(codeArg, from = 'search') {
     showView('results'); $('term').value = code;
     stock({ code, description: desc }, rows);
     if (useFx) { novaReset(card); popIn($('stockSection')); }
+    if (useBusy) { resultsBusy(false); popIn($('stockSection')); }
     addHistory(code, desc, rows.length, rows.filter(priorityMatch).length);
     if (d.mode === 'prefixo') message(`Nenhum código exatamente igual a ${code}; exibindo códigos que começam com ele.`, 'info');
     if (d.notice) message(d.notice, 'error');
@@ -973,6 +987,7 @@ async function search(codeArg, from = 'search') {
     if (e.status === 401 || e.status === 403) { novaReset(card); requireLogin(); return; }
     message(e.message || 'Falha ao consultar o estoque no Protheus.', 'error');
   } finally {
+    if (useBusy) resultsBusy(false);
     if (useFx && !found && document.body.dataset.view === 'search') await novaOpen(card); // sem resultado: o cartão abre de novo
     else if (useFx && !found) novaReset(card);
     searching = false; btn.innerHTML = label;
@@ -1004,8 +1019,8 @@ function fillAddressFilter() {
 }
 function updateFilterHint() {
   const hints = {
-    Z5_ENDEREC: ['Parte do endereço', 'Ex.: A-01'], RG: ['RG', 'Ex.: FPK4997'], Z5_OP: ['OP', 'Digite o número da OP…'],
-    Z5_PARTIDA: ['Partida', 'Digite a partida…'], Z5_ALMOXA: ['Armazém', 'Ex.: 01'], Z6_GRUPO: ['Grupo de produto', 'Digite o código do grupo…'], Z5_TONALID: ['Tonalidade', 'Digite a tonalidade…']
+    Z5_ENDEREC: ['Endereço', 'Digite o endereço...'], RG: ['RG', 'Digite o número do RG...'], Z5_OP: ['OP', 'Digite o número da OP...'],
+    Z5_PARTIDA: ['Partida', 'Digite o número da partida...'], Z5_ALMOXA: ['Armazém', 'Digite o número do armazém...'], Z6_GRUPO: ['Grupo de produto', 'Digite o código do grupo…'], Z5_TONALID: ['Tonalidade', 'Digite a tonalidade…']
   };
   const hint = hints[$('filterType').value] || ['Valor do filtro', 'Digite para filtrar…'];
   $('filterValueLabel').textContent = hint[0]; $('filterValue').placeholder = hint[1];
@@ -1058,30 +1073,36 @@ function toggleDetail(tr, r, btn) {
   const dtr = document.createElement('tr'); dtr.className = 'detail-row';
   const td = document.createElement('td'); td.colSpan = tr.children.length;
   const grid = document.createElement('div'); grid.className = 'detail-grid';
-  const addItem = (label, value, raw) => {
-    const item = document.createElement('div');
-    const a = document.createElement('span'); a.textContent = label; if (raw) a.title = raw;
-    const b = document.createElement('b'); b.textContent = value;
-    item.append(a, b); grid.append(item); return item;
+  const val = (k, v) => {
+    if (v === undefined || v === null || String(v).trim() === '') return '—';
+    if (/DT|DATA|DTEND/i.test(k) && dateParts(v)) return formatDate(v);
+    if (k === 'Z5_PESOATU') return `${fmtNum(v, 2)} kg`;
+    if (k === 'Z5_CMC') return fmtNum(v, 2);
+    if (k === 'Z5_GRAMATU') return `${fmtNum(v, 0, 2)} g/m²`;
+    return fmt(v);
   };
+  // Produto · RG · OP · Partida · Endereço / Peso atual · Armazém · Gramatura · CMC / Data de entrada · Data de endereçamento
+  [[['Produto', 'Z5_PROD'], ['RG', null], ['OP', 'Z5_OP'], ['Partida', 'Z5_PARTIDA'], ['Endereço', 'Z5_ENDEREC']],
+   [['Peso atual', 'Z5_PESOATU'], ['Armazém', 'Z5_ALMOXA'], ['Gramatura', 'Z5_GRAMATU'], ['CMC', 'Z5_CMC']],
+   [['Data de entrada', 'Z5_DTENT'], ['Data de endereçamento', 'Z5_4KDTEND']]].forEach(line => {
+    const row = document.createElement('div'); row.className = 'detail-line';
+    line.forEach(([label, k]) => {
+      const item = document.createElement('div');
+      const a = document.createElement('span'); a.textContent = label; if (k) a.title = k;
+      const b = document.createElement('b'); b.textContent = k ? val(k, field(r, k)) : (rgOf(r) || '—');
+      item.append(a, b); row.append(item);
+    });
+    grid.append(row);
+  });
   const rule = priorityRuleFor(r);
   if (rule) {
-    const ideal = Number(rule.gramatura), tol = Number(rule.tolerance ?? DEFAULT_TOLERANCE);
+    const ideal = Number(rule.gramatura), tol = Number(rule.tolerance ?? DEFAULT_TOLERANCE), ok = gramaturaOk(r);
     const lo = ideal * (1 - tol / 100), hi = ideal * (1 + tol / 100);
-    const it = addItem(`Padrão de gramatura — ${ruleSourceLabel(rule)}`, `${fmtNum(ideal, 0, 2)} g/m² ±${fmtNum(tol, 0, 2)}% (faixa ${fmtNum(lo, 0, 2)} a ${fmtNum(hi, 0, 2)}) — ${gramaturaOk(r) ? 'dentro da faixa' : 'fora da faixa'}`);
-    it.classList.add('wide');
+    const it = document.createElement('div'); it.className = 'detail-rule' + (ok ? ' ok' : ' bad'); it.title = 'Origem: ' + ruleSourceLabel(rule);
+    const a = document.createElement('span'); a.textContent = 'Padrão de gramatura';
+    const b = document.createElement('b'); b.textContent = `${fmtNum(ideal, 0, 2)} g/m² ±${fmtNum(tol, 0, 2)}% (${fmtNum(lo, 0, 1)} a ${fmtNum(hi, 0, 1)}) - ${ok ? 'Aprovado.' : 'Fora do padrão.'}`;
+    it.append(a, b); grid.append(it);
   }
-  addItem('RG', rgOf(r) || '—');
-  const keys = Object.keys(r).filter(k => !DETAIL_HIDDEN.has(k.toUpperCase()));
-  const pos = k => { const i = DETAIL_ORDER.indexOf(k.toUpperCase()); return i < 0 ? 999 : i; };
-  keys.sort((a, b) => pos(a) - pos(b)).map(k => [k, r[k]]).forEach(([k, v]) => {
-    let text = (v !== null && typeof v === 'object') ? JSON.stringify(v) : fmt(v);
-    if (/DT|DATA|ULTATU/i.test(k) && dateParts(v)) text = formatDate(v);
-    else if (k === 'Z5_PESOATU') text = `${fmtNum(v, 2)} kg`;
-    else if (k === 'Z5_CMC') text = fmtNum(v, 2);
-    else if (k === 'Z5_GRAMATU') text = `${fmtNum(v, 0, 2)} g/m²`;
-    addItem(DETAIL_LABELS[k.toUpperCase()] || k, text, k);
-  });
   td.append(grid); dtr.append(td); tr.after(dtr); tr.classList.add('open');
   if (btn) btn.textContent = '− Ocultar';
 }
@@ -1159,11 +1180,8 @@ function openGroup(index) {
   const weight = g.rows.reduce((s, r) => s + (numericValue(field(r, 'Z5_PESOATU')) || 0), 0);
   $('groupTitle').textContent = `OP ${g.op || '—'} · Partida ${g.partida || '—'}`;
   $('groupSub').textContent = `${selected?.code || ''} — ${groupLabel(g.rows[0])} · grupo ${index + 1} de ${currentGroups.length}`;
-  const box = $('groupStats'); box.replaceChildren();
-  [['Rolos', String(n)], ['Peso total', `${fmtNum(weight, 2)} kg`],
-   ['Endereços', String(new Set(g.rows.map(addrOf).filter(Boolean)).size)]].forEach(([a, b]) => {
-    const d = document.createElement('div'); const l = document.createElement('span'); l.textContent = a; const v = document.createElement('strong'); v.textContent = b; d.append(l, v); box.append(d);
-  });
+  const nAddr = new Set(g.rows.map(addrOf).filter(Boolean)).size;
+  $('groupStats').textContent = `${n} rolo${n === 1 ? '' : 's'} · ${fmtNum(weight, 2)} kg · ${nAddr} endereço${nAddr === 1 ? '' : 's'}`;
   $('groupTable').replaceChildren(rollTable(g, visibleRows));
   const gd = defectFor(g.rows[0]);
   $('groupDefect').classList.toggle('hidden', !gd);

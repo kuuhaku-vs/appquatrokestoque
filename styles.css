@@ -652,3 +652,48 @@ th.num-cell,td.num-cell{text-align:right}
   .message{top:max(10px,env(safe-area-inset-top))}
 }
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ===== tela principal: contagem, centralização, detalhes, carregamento ===== */
+/* contagem das linhas no tom do site (índigo); preenchida = aprovado; dourada só para "Indicado por OP" */
+.priority-cell .rank{min-width:24px;height:24px;border-radius:50%;padding:0 6px;background:var(--surface);border:1.5px solid var(--accent-line);color:var(--accent);font-weight:800}
+.priority-match .rank{background:linear-gradient(135deg,var(--btn-a),var(--btn-b))!important;border-color:transparent!important;color:#fff!important}
+.op-row .rank{background:linear-gradient(135deg,var(--nova),var(--nova-2))!important;border-color:transparent!important;color:var(--brand-night)!important}
+.defect-row .rank{background:var(--bad)!important;border-color:transparent!important;color:#fff!important}
+.loc-tag{padding:2px 5px;font-size:12px;background:transparent;border:0}
+/* tudo centralizado na tabela */
+#stockSection thead th,#stockSection tbody td,.roll-table th,.roll-table td{text-align:center}
+#stockSection td.desc-cell{margin:0 auto}
+.priority-cell .pill-why{text-align:center;margin-left:0}
+#stockSection td.address-cell{max-width:none}
+.stock-section:not(.hidden) #stats:not(.hidden){justify-content:center}
+/* resumo discreto do grupo */
+.group-stats{display:block;margin:4px 0 12px;font-size:12px;color:var(--muted)}
+/* detalhes do rolo: 3 linhas + padrão embaixo */
+.detail-grid{display:flex;flex-direction:column;gap:10px}
+.detail-line{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px 16px}
+.detail-line:nth-child(2){grid-template-columns:repeat(4,minmax(0,1fr))}
+.detail-line:nth-child(3){grid-template-columns:repeat(2,minmax(0,1fr))}
+.detail-line div{display:flex;flex-direction:column;align-items:center;min-width:0;text-align:center}
+.detail-rule{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 10px;border-radius:8px;text-align:center}
+.detail-rule span{font-size:9px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
+.detail-rule b{font-size:12.5px}
+.detail-rule.ok{background:var(--ok-bg);border:1px solid var(--ok-line)}.detail-rule.ok b{color:var(--ok)}
+.detail-rule.bad{background:var(--bad-bg);border:1px solid var(--bad-line)}.detail-rule.bad b{color:var(--bad)}
+/* pesquisa pela barra do topo: resultados desfocados + estrela pulsando */
+.stock-section{transition:filter .3s,opacity .3s}
+.stock-section.fx-busy{filter:blur(6px);opacity:.55;pointer-events:none}
+.nova-loader{position:fixed;left:50%;top:calc(50% + 31px);width:0;height:0;z-index:26;pointer-events:none}
+.nova-loader .nova-core,.nova-loader .nova-ring{position:absolute}
+.nova-loader .nova-core{opacity:1;transform:none;animation:nova-breathe 1.1s ease-in-out infinite}
+.nova-loader .nova-ring{animation:nova-pulse 1.1s ease-out infinite}
+@media(max-width:720px){
+  #stockBody tr.group-row td,.roll-table tr.roll-row td{text-align:left}
+  .detail-line,.detail-line:nth-child(2){grid-template-columns:repeat(2,minmax(0,1fr))}
+  .detail-line div{align-items:flex-start;text-align:left}
+  .nova-loader{top:50%}
+}
+.detail-grid .detail-line{display:grid;flex-direction:initial}
+.detail-grid .detail-line>div{display:flex;flex-direction:column;align-items:center;text-align:center;min-width:0}
+.detail-grid .detail-rule{display:flex}
+@media(max-width:720px){.detail-grid .detail-line>div{align-items:flex-start;text-align:left}}
+@media(max-width:720px){.priority-cell .pill-why{text-align:left}}
