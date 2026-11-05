@@ -10,13 +10,15 @@
  *     Clique em Implantar, autorize com sua conta Google e copie o "URL do app da Web".
  *  5. No NOVA: Pastas → cole o URL e o código da equipe → Conectar.
  *
- * As abas "Pastas" e "Rolos" são criadas sozinhas. Pode olhar e filtrar à vontade;
+ * As abas "Pastas", "Rolos" e "Defeitos" são criadas sozinhas. Pode olhar e filtrar à vontade;
  * evite apagar colunas ou mudar a linha 1 (cabeçalho).
  * Se alterar este código depois: Implantar → Gerenciar implantações → editar (lápis) → Versão: Nova versão → Implantar.
  */
 const CHAVE = 'TROQUE-ESTA-CHAVE';
 
-const SH_P = 'Pastas', SH_R = 'Rolos';
+const SH_P = 'Pastas', SH_R = 'Rolos', SH_D = 'Defeitos';
+const HD = ['produto', 'op', 'partida', 'defeitos', 'outros', 'observacao', 'usuario', 'data'];
+const DEFECT_OPTIONS = ['BARRAMENTO', 'QUEBRADURA', 'MANCHAS', 'SUJA', 'OUTROS'];
 const HP = ['id', 'nome', 'criada_em', 'criada_por'];
 const HR = ['pasta_id', 'pasta', 'item_key', 'produto', 'descricao', 'op', 'partida', 'enderecos', 'status',
             'rg', 'endereco', 'armazem', 'peso', 'gramatura', 'cmc', 'pego', 'pego_por', 'pego_em', 'salvo_por', 'salvo_em'];
@@ -36,11 +38,19 @@ function handle_(b) {
     if (String(b.key || '') !== CHAVE) return out_({ ok: false, error: 'Código da equipe inválido.' });
     const a = String(b.action || 'list');
     if (a === 'list') return out_({ ok: true, folders: list_() });
+    if (a === 'listDefects') return out_({ ok: true, defects: listDefects_() });
     const lock = LockService.getScriptLock();
     lock.waitLock(20000);
     try {
       const user = String(b.user || '').slice(0, 40);
       let extra = {};
+      if (a === 'saveDefect' || a === 'removeDefect') {
+        if (a === 'saveDefect') extra.defect = saveDefect_(b.defect, user);
+        else removeDefect_(b.produto, b.op);
+        SpreadsheetApp.flush();
+        extra.ok = true; extra.defects = listDefects_();
+        return out_(extra);
+      }
       if (a === 'createFolder') extra.folder = createFolder_(b.name, user);
       else if (a === 'deleteFolder') deleteFolder_(b.folderId);
       else if (a === 'saveItem') saveItem_(b.folderId, b.item, user);
@@ -161,4 +171,36 @@ function setPicked_(folderId, key, rg, endereco, picked, user) {
   const i = all.findIndex(x => x[C.pasta_id] === folderId && x[C.item_key] === key && x[C.rg] === s_(rg) && x[C.endereco] === s_(endereco));
   if (i < 0) throw new Error('Rolo não encontrado na pasta (a OP pode ter sido atualizada por outro usuário). Toque em Atualizar.');
   sr.getRange(i + 2, C.pego + 1, 1, 3).setNumberFormat('@').setValues([[picked ? 'sim' : 'nao', picked ? user : '', picked ? now_() : '']]);
+}
+
+/* ---------------- malhas com defeito (aba Defeitos) ---------------- */
+// Uma linha por produto + OP. Todos os usuários do NOVA veem as mesmas malhas ruins.
+function listDefects_() {
+  return rows_(sheet_(SH_D, HD), HD.length).filter(x => x[0] && x[1]).map(x => ({
+    produto: x[0], op: x[1], partida: x[2],
+    defeitos: String(x[3]).split(/[,|/]+/).map(t => t.trim().toUpperCase()).filter(t => DEFECT_OPTIONS.indexOf(t) >= 0),
+    outros: x[4], observacao: x[5], usuario: x[6], data: x[7]
+  })).filter(d => d.defeitos.length);
+}
+function saveDefect_(d, user) {
+  d = d || {};
+  const produto = s_(d.produto).trim().toUpperCase().slice(0, 40), op = s_(d.op).trim().slice(0, 40);
+  if (!produto || !op) throw new Error('Informe o produto e a OP da malha.');
+  const defeitos = (Array.isArray(d.defeitos) ? d.defeitos : []).map(t => s_(t).trim().toUpperCase())
+    .filter((t, i, arr) => DEFECT_OPTIONS.indexOf(t) >= 0 && arr.indexOf(t) === i);
+  if (!defeitos.length) throw new Error('Selecione pelo menos um defeito.');
+  const outros = defeitos.indexOf('OUTROS') >= 0 ? s_(d.outros).trim().slice(0, 80) : '';
+  if (defeitos.indexOf('OUTROS') >= 0 && !outros) throw new Error('Descreva o defeito em "Outros".');
+  const row = [produto, op, s_(d.partida).trim().slice(0, 40), defeitos.join(', '), outros, s_(d.observacao).trim().slice(0, 300),
+    s_(d.usuario || user).slice(0, 40), s_(d.data) || Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm')];
+  const sh = sheet_(SH_D, HD);
+  const keep = rows_(sh, HD.length).filter(x => !(x[0] === produto && x[1] === op));
+  keep.push(row);
+  rewrite_(sh, HD.length, keep);
+  return { produto: row[0], op: row[1], partida: row[2], defeitos, outros: row[4], observacao: row[5], usuario: row[6], data: row[7] };
+}
+function removeDefect_(produto, op) {
+  produto = s_(produto).trim().toUpperCase(); op = s_(op).trim();
+  const sh = sheet_(SH_D, HD);
+  rewrite_(sh, HD.length, rows_(sh, HD.length).filter(x => !(x[0] === produto && x[1] === op)));
 }

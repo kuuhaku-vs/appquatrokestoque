@@ -712,3 +712,6 @@ th.num-cell,td.num-cell{text-align:right}
 .priority-cell .priority-pill{min-width:172px;justify-content:center}
 .detail-grid .detail-line,.detail-grid .detail-line:nth-child(2),.detail-grid .detail-line:nth-child(3){grid-template-columns:repeat(5,minmax(0,1fr))}
 @media(max-width:720px){.priority-cell .priority-pill{min-width:0}.detail-grid .detail-line,.detail-grid .detail-line:nth-child(2),.detail-grid .detail-line:nth-child(3){grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* a mensagem do topo não bloqueia os botões que ficam por baixo (só o × dela recebe o toque) */
+.message{pointer-events:none}
+.message button{pointer-events:auto}

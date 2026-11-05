@@ -344,7 +344,42 @@ const DEFECT_OPTIONS = [['BARRAMENTO', 'Barramento'], ['QUEBRADURA', 'Quebradura
 let defects = new Map(), defectTarget = null;
 const defectKey = (prod, op) => `${String(prod || '').trim().toUpperCase()}|${String(op || '').trim()}`;
 function setDefects(rows) { defects = new Map((rows || []).map(d => [defectKey(d.produto, d.op), d])); }
-async function loadDefects() { if (!connected) return; const d = await api('/api/defects'); setDefects(d.rows); return d; }
+// Com a planilha da equipe conectada (Pastas), os defeitos ficam na aba "Defeitos" e todos veem os mesmos.
+// Sem ela: computador = dados/MALHAS_RUINS.csv; celular/GitHub = neste aparelho.
+const DCACHE_KEY = 'nova_defects_cache_v1';
+let defectsRemoteOff = false;   // planilha com script antigo (sem a aba Defeitos)
+const sharedDefects = () => isShared() && !defectsRemoteOff;
+async function remoteDefects(action, data) {
+  try { return await remote(action, data); }
+  catch (e) {
+    if (/Ação desconhecida/i.test(e.message)) {
+      defectsRemoteOff = true;
+      message('A planilha da equipe está com o script antigo: os defeitos continuam só neste aparelho. Cole a versão nova do script (PLANILHA_PASTAS_Code.gs) e publique uma nova versão para compartilhar os defeitos.', 'error');
+      return null;
+    }
+    throw e;
+  }
+}
+async function loadDefects() {
+  if (!connected) return;
+  if (sharedDefects()) {
+    try { const j = await remoteDefects('listDefects'); if (j) { setDefects(j.defects); lsSet(DCACHE_KEY, j.defects); return j; } }
+    catch (e) { const c = lsGet(DCACHE_KEY, null); if (Array.isArray(c)) { setDefects(c); return; } throw e; }
+  }
+  const d = await api('/api/defects'); setDefects(d.rows); return d;
+}
+// defeitos que estão só neste aparelho/computador e ainda não estão na planilha
+async function localOnlyDefects() {
+  if (!sharedDefects()) return [];
+  try { const d = await api('/api/defects'); return (d.rows || []).filter(x => !defects.has(defectKey(x.produto, x.op))); } catch { return []; }
+}
+async function migrateDefects() {
+  const list = await localOnlyDefects(); if (!list.length) return;
+  const btn = $('defectMigrate'); btn.disabled = true; let n = 0;
+  try { for (const d of list) { const j = await remoteDefects('saveDefect', { defect: d }); if (!j) break; setDefects(j.defects); n++; } lsSet(DCACHE_KEY, [...defects.values()]); message(`${n} defeito(s) enviados para a planilha da equipe.`, 'success'); }
+  catch (e) { message(`${e.message} (${n} enviados até aqui — pode tentar de novo, não duplica).`, 'error'); }
+  finally { btn.disabled = false; btn.classList.add('hidden'); refreshAfterDefect(); }
+}
 function defectFor(r) { return defects.get(defectKey(field(r, 'Z5_PROD'), field(r, 'Z5_OP'))) || null; }
 function defectText(d) { return d.defeitos.map(x => x === 'OUTROS' && d.outros ? d.outros.toUpperCase() : x).join(' · '); }
 function defectPill(d) {
@@ -371,6 +406,9 @@ function openDefect(g) {
   $('defectInfo').textContent = cur ? `Registrado${cur.usuario ? ' por ' + cur.usuario : ''}${cur.data ? ' em ' + cur.data : ''}.` : '';
   $('defectRemove').classList.toggle('hidden', !cur);
   $('defectError').classList.add('hidden');
+  $('defectWhere').textContent = sharedDefects() ? 'Fica na planilha da equipe: todos veem.' : '';
+  $('defectMigrate').classList.add('hidden');
+  localOnlyDefects().then(l => { if (l.length) { $('defectMigrate').textContent = `⇪ Enviar ${l.length} defeito(s) deste aparelho para a planilha`; $('defectMigrate').classList.remove('hidden'); } });
   $('defectModal').classList.remove('hidden');
 }
 function closeDefect() { $('defectModal').classList.add('hidden'); defectTarget = null; }
@@ -382,17 +420,24 @@ async function saveDefect() {
   if (defeitos.includes('OUTROS') && !$('defectOther').value.trim()) { $('defectOther').focus(); return defectError('Descreva o defeito em "Outros".'); }
   const btn = $('defectSave'); btn.disabled = true; btn.textContent = 'Salvando…';
   try {
-    const d = await api('/api/defects', { method: 'POST', body: JSON.stringify({ ...defectTarget, defeitos, outros: $('defectOther').value, observacao: $('defectObs').value }) });
-    setDefects(d.rows); const op = defectTarget.op; closeDefect(); refreshAfterDefect();
-    message(`Defeito registrado para a OP ${op}: ${defectText(d.row)}. ${NOVA_STATIC ? 'Guardado neste aparelho.' : 'Gravado na planilha MALHAS_RUINS.csv.'}`, 'success');
+    const payload = { ...defectTarget, defeitos, outros: $('defectOther').value, observacao: $('defectObs').value };
+    let row, where;
+    const j = sharedDefects() ? await remoteDefects('saveDefect', { defect: payload }) : null;
+    if (j) { setDefects(j.defects); lsSet(DCACHE_KEY, j.defects); row = j.defect; where = 'Gravado na planilha da equipe.'; }
+    else { const d = await api('/api/defects', { method: 'POST', body: JSON.stringify(payload) }); setDefects(d.rows); row = d.row; where = NOVA_STATIC ? 'Guardado neste aparelho.' : 'Gravado na planilha MALHAS_RUINS.csv.'; }
+    const op = defectTarget.op; closeDefect(); refreshAfterDefect();
+    message(`Defeito registrado para a OP ${op}: ${defectText(row)}. ${where}`, 'success');
   } catch (e) { defectError(e.message); }
   finally { btn.disabled = false; btn.textContent = 'Salvar na planilha'; }
 }
 async function removeDefect() {
   if (!defectTarget || !confirm(`Remover a marcação de defeito da OP ${defectTarget.op}?`)) return;
   try {
-    const d = await api(`/api/defects?produto=${encodeURIComponent(defectTarget.produto)}&op=${encodeURIComponent(defectTarget.op)}`, { method: 'DELETE' });
-    setDefects(d.rows); const op = defectTarget.op; closeDefect(); refreshAfterDefect();
+    const j = sharedDefects() ? await remoteDefects('removeDefect', { produto: defectTarget.produto, op: defectTarget.op }) : null;
+    if (j) { setDefects(j.defects); lsSet(DCACHE_KEY, j.defects); }
+    // também tira do aparelho/computador, para não voltar ao enviar os defeitos locais
+    try { const d = await api(`/api/defects?produto=${encodeURIComponent(defectTarget.produto)}&op=${encodeURIComponent(defectTarget.op)}`, { method: 'DELETE' }); if (!j) setDefects(d.rows); } catch (e) { if (!j) throw e; }
+    const op = defectTarget.op; closeDefect(); refreshAfterDefect();
     message(`Marcação de defeito removida da OP ${op}.`, 'success');
   } catch (e) { defectError(e.message); }
 }
@@ -600,6 +645,7 @@ function renderSharedBox() {
       if (!fixedUrl) lsSet(PURL_KEY, u);
       lsSet(PKEY_KEY, k); lsSet(FCACHE_KEY, { folders: j.folders || [], at: Date.now() }); folderSyncAt = Date.now();
       message(`Conectado às pastas da equipe: ${(j.folders || []).length} pasta(s).`, 'success');
+      loadDefects().then(() => { if (document.body.dataset.view === 'results') applyFilters(); }).catch(() => {});
       renderFoldersList(); updateFolderUi(); startFolderPoll();
     } catch (err) { message(err.message, 'error'); }
     finally { go.disabled = false; go.textContent = 'Conectar'; }
@@ -1441,6 +1487,7 @@ $('phoneModal').addEventListener('mousedown', e => { if (e.target === $('phoneMo
 $('filterToggle').onclick = () => { const open = !$('stockSection').classList.contains('filters-open'); $('stockSection').classList.toggle('filters-open', open); $('filterToggle').setAttribute('aria-expanded', String(open)); $('filterToggle').textContent = open ? '⚲ Menos filtros' : '⚲ Mais filtros'; };
 $('defectBtn').onclick = () => { const g = currentGroups[groupIndex]; if (g) openDefect(g); };
 $('defectSave').onclick = saveDefect; $('defectRemove').onclick = removeDefect;
+$('defectMigrate').onclick = migrateDefects;
 $('defectCancel').onclick = closeDefect; $('closeDefect').onclick = closeDefect;
 $('defectOpenFile').onclick = async () => { try { const d = await api('/api/defects/open', { method: 'POST', body: '{}' }); message(NOVA_STATIC ? 'Planilha de defeitos baixada (MALHAS_RUINS.csv).' : `Planilha aberta: ${d.filePath}. Feche no Excel antes de salvar um novo defeito.`, 'info'); } catch (e) { defectError(e.message); } };
 if (NOVA_STATIC) {
@@ -1449,7 +1496,7 @@ if (NOVA_STATIC) {
   $('defectImport').onclick = () => $('defectFile').click();
   $('defectFile').onchange = async () => {
     const f = $('defectFile').files[0]; $('defectFile').value = ''; if (!f) return;
-    try { const r = await window.NovaLocal.importDefects(await f.text()); setDefects(r.rows); closeDefect(); refreshAfterDefect(); message(`${r.imported} defeito(s) importado(s) da planilha.`, 'success'); }
+    try { const r = await window.NovaLocal.importDefects(await f.text()); if (sharedDefects()) { closeDefect(); await migrateDefects(); return; } setDefects(r.rows); closeDefect(); refreshAfterDefect(); message(`${r.imported} defeito(s) importado(s) da planilha.`, 'success'); }
     catch (e) { defectError(e.message); }
   };
   $('openPriorityFile').textContent = '↓ Baixar planilha (CSV)';

@@ -33,7 +33,9 @@ Sem isso, cada aparelho tem as suas pastas. Com isso, **todos os usuários e apa
 4. **Implantar → Nova implantação** → engrenagem ⚙ → **App da Web**. *Executar como:* **Eu**; *Quem pode acessar:* **Qualquer pessoa** → **Implantar** → autorize com a conta Google (se aparecer "app não verificado": *Avançado → Acessar*). Copie o **URL do app da Web** (termina em `/exec`).
 5. Em cada aparelho: **📁 Pastas** → cole o URL e o código da equipe → **Conectar**. (Se o URL for colocado no `config.js`, em `pastasUrl`, cada aparelho só digita o código.)
 6. Pastas que já estavam só num aparelho: depois de conectar, toque em **⇪ Enviar pastas deste aparelho para a planilha**.
-- As abas **Pastas** e **Rolos** são criadas sozinhas na planilha (dá para olhar e filtrar; não apague colunas nem a linha 1).
+- As abas **Pastas**, **Rolos** e **Defeitos** são criadas sozinhas na planilha (dá para olhar e filtrar; não apague colunas nem a linha 1).
+- **Malhas com defeito também são compartilhadas**: com a planilha conectada, o que um usuário marca em ⚠ Indicar defeito aparece em vermelho para todos (aba Defeitos). Defeitos que estavam só no aparelho/computador: abra ⚠ Indicar defeito e toque em **⇪ Enviar defeitos deste aparelho para a planilha**.
+- **Atualizar o script** (quando vier versão nova): Apps Script → apague tudo → cole o novo `PLANILHA_PASTAS_Code.gs` → **coloque de novo o seu código em CHAVE** → Salvar → **Implantar → Gerenciar implantações → ✏️ → Versão: Nova versão → Implantar**. O URL continua o mesmo.
 - O código da equipe nunca fica no GitHub: só no Apps Script (privado) e em cada aparelho. Quem não tem o código não lê nem grava.
 
 ## Como funciona nesta versão
