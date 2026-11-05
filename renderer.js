@@ -242,9 +242,11 @@ async function bioCheck() {
 }
 function updateBioUi() {
   const d = bioData(), on = bioAvailable && !!d;
-  $('faceLogin').classList.toggle('hidden', !on);
+  // sem botão: o Face ID abre ao tocar no campo de senha
+  $('faceLogin').classList.add('hidden');
   $('faceRemove').classList.toggle('hidden', !on);
-  if (on) { $('faceBtnLabel').textContent = `Entrar com ${BIO_LABEL}${d.user ? ' · ' + d.user : ''}`; $('faceRemove').textContent = `Remover ${BIO_LABEL} deste aparelho`; }
+  $('password').placeholder = on ? `Toque para entrar com ${BIO_LABEL}` : '';
+  if (on) { $('faceRemove').textContent = `Remover ${BIO_LABEL} deste aparelho`; if (d.user && !$('username').value) $('username').value = d.user; }
   const offer = bioAvailable && !d && !!lastCreds && !lsGet(BIO_SKIP, false);
   $('faceOffer').classList.toggle('hidden', !offer);
   if (offer && !pendingBioId) { $('faceOfferText').textContent = `Entrar com ${BIO_LABEL} nas próximas vezes?`; $('faceEnable').textContent = 'Ativar'; }
@@ -301,8 +303,8 @@ async function bioLogin() {
     $('username').value = creds.u;
     await login(null, creds);
   } catch (e) {
-    bioSkipField = true;
-    if (e.name === 'NotAllowedError' || e.name === 'AbortError') loginError(`${BIO_LABEL} cancelado. Digite a senha ou toque em "Entrar com ${BIO_LABEL}".`);
+    bioSkipField = true; $('password').placeholder = '';
+    if (e.name === 'NotAllowedError' || e.name === 'AbortError') loginError(`${BIO_LABEL} cancelado. Digite a senha para entrar.`);
     else loginError(`Não foi possível entrar com ${BIO_LABEL}. Entre com usuário e senha.`);
   } finally { btn.disabled = false; }
 }
