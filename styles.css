@@ -131,6 +131,29 @@ body:has(#stockSection:not(.hidden)) .theme-toggle,body:has(.modal-backdrop:not(
 .user-chip.dark .text-button{color:var(--nova)}
 .user-dot{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--nova),var(--nova-2));color:var(--brand-night);font-size:11px;font-weight:800}
 
+/* efeito "nova" (abrir/fechar o cartão) */
+.center-card{transition:width .45s cubic-bezier(.65,0,.35,1)}
+.nova-fx{position:absolute;pointer-events:none;z-index:3}
+.nova-corner{width:46px;height:46px;opacity:.95;transition:transform .5s cubic-bezier(.7,0,.25,1),opacity .3s,border-radius .5s,box-shadow .5s}
+.nova-corner.tl{top:0;left:0;background:linear-gradient(135deg,var(--nova) 0 44%,transparent 45%)}
+.nova-corner.br{right:0;bottom:0;background:linear-gradient(315deg,var(--btn-b) 0 44%,transparent 45%)}
+.nova-core{left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;display:grid;place-items:center;opacity:0;transform:scale(.3) rotate(-45deg);transition:transform .38s cubic-bezier(.2,1.4,.4,1),opacity .25s}
+.nova-core svg{width:56px;height:56px;fill:var(--nova);filter:drop-shadow(0 0 10px rgba(242,181,68,.85)) drop-shadow(0 0 22px rgba(242,181,68,.45))}
+.nova-ring{left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;border:2px solid rgba(242,181,68,.6);box-shadow:0 0 24px rgba(242,181,68,.35),inset 0 0 18px rgba(75,63,176,.35);opacity:0;transform:scale(.4)}
+/* conteúdo do cartão some/volta (tudo que não é efeito) */
+.center-card>:not(.nova-fx){transition:opacity .28s,filter .28s,transform .28s}
+.center-card.fx-close>:not(.nova-fx){opacity:0;filter:blur(8px);transform:scale(.985)}
+.center-card.fx-open>:not(.nova-fx){transition-delay:.18s;transition-duration:.38s}
+.center-card.fx-close .nova-corner.tl{transform:translate(var(--fx-x),var(--fx-y)) rotate(45deg) scale(.9);border-radius:10px;box-shadow:0 0 22px rgba(242,181,68,.55)}
+.center-card.fx-close .nova-corner.br{transform:translate(calc(-1 * var(--fx-x)),calc(-1 * var(--fx-y))) rotate(45deg) scale(.9);border-radius:10px;box-shadow:0 0 22px rgba(75,63,176,.55)}
+.center-card.fx-core .nova-corner{opacity:0;transition:opacity .2s}
+.center-card.fx-core .nova-core{opacity:1;transform:scale(1) rotate(0)}
+.center-card.fx-core .nova-ring{animation:nova-pulse .7s ease-out forwards}
+.center-card.fx-instant,.center-card.fx-instant *{transition:none!important;animation:none!important}
+.center-card.fx-close,.center-card.fx-open{background:linear-gradient(160deg,var(--surface) 0%,var(--surface-2) 100%)}
+@keyframes nova-pulse{0%{opacity:.9;transform:scale(.4)}70%{opacity:.35}100%{opacity:0;transform:scale(3.2)}}
+@media(prefers-reduced-motion:reduce){.nova-corner,.nova-core,.nova-ring{transition:none!important;animation:none!important}}
+
 /* campo do código (12 caracteres) */
 .code-wrap{position:relative;margin-bottom:22px}
 .code-input{width:100%;height:64px;border:1.5px solid var(--field-line);border-radius:12px;padding:0 74px 0 20px;font-family:Consolas,"Cascadia Mono","Courier New",monospace;font-size:26px;letter-spacing:.2em;color:var(--ink);text-transform:uppercase;outline:none;background:var(--field);transition:border-color .15s,box-shadow .15s}

@@ -146,6 +146,47 @@ function setConnection(ok, user = '') {
   document.querySelectorAll('[data-avatar]').forEach(e => { e.textContent = currentUser ? currentUser.slice(0, 1).toUpperCase() : '?'; });
 }
 function loginError(text) { const b = $('loginError'); b.textContent = text || ''; b.classList.toggle('hidden', !text); }
+// Efeito "nova" entre login e pesquisa: o conteúdo se desfaz, as duas peças de canto deslizam até o
+// centro e formam a estrela (com um pulso); depois se abrem de novo mostrando a outra tela.
+const REDUCED_MOTION = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } })();
+const wait = ms => new Promise(r => setTimeout(r, ms));
+let novaFxRunning = false;
+function fxVars(card) {
+  const r = card.getBoundingClientRect(), c = 46;
+  card.style.setProperty('--fx-x', `${(r.width - c) / 2}px`);
+  card.style.setProperty('--fx-y', `${(r.height - c) / 2}px`);
+}
+async function novaTransition(fromCard, toCard, swap) {
+  if (REDUCED_MOTION || novaFxRunning || !fromCard.offsetParent) { swap(); return; }
+  novaFxRunning = true;
+  try {
+    const fromW = fromCard.getBoundingClientRect().width;
+    fxVars(fromCard);
+    fromCard.classList.add('fx-close');                 // conteúdo some + cantos vão ao centro
+    await wait(520);
+    fromCard.classList.add('fx-core');                  // estrela + pulso
+    await wait(380);
+    swap();                                             // troca de tela com o cartão ainda "fechado"
+    toCard.classList.add('fx-instant', 'fx-close', 'fx-core');
+    const target = toCard.getBoundingClientRect().width;
+    toCard.style.width = fromW + 'px';
+    fxVars(toCard);
+    void toCard.offsetWidth;
+    toCard.classList.remove('fx-instant');
+    fromCard.classList.remove('fx-close', 'fx-core');
+    requestAnimationFrame(() => { toCard.style.width = target + 'px'; });
+    await wait(260);
+    toCard.classList.remove('fx-core');
+    fxVars(toCard);
+    toCard.classList.add('fx-open');                    // cantos voltam e o conteúdo aparece
+    toCard.classList.remove('fx-close');
+    await wait(620);
+  } finally {
+    toCard.classList.remove('fx-open', 'fx-close', 'fx-core', 'fx-instant');
+    toCard.style.width = '';
+    novaFxRunning = false;
+  }
+}
 function goLogin(text) {
   $('stockSection').classList.add('hidden');
   setConnection(false); showView('login'); loginError(text || '');
@@ -168,7 +209,8 @@ async function login(e) {
     const d = await api('/api/login', { method: 'POST', body: JSON.stringify({ username, password, remember: $('remember').checked, apiUrl: $('apiUrl') ? $('apiUrl').value.trim() : '' }) }, 45000);
     $('password').value = '';
     setConnection(true, d.username);
-    goSearch();
+    await novaTransition($('loginForm'), $('codeForm'), goSearch);
+    $('codeInput').focus();
     if (d.remembered && d.savedOnDisk === false) message('Conectado por 30 dias. Se o computador do NOVA for reiniciado ou a janela do servidor for fechada, será preciso entrar de novo.', 'info');
   } catch (err) {
     loginError(err.message || 'Não foi possível validar o acesso.');
@@ -178,7 +220,9 @@ async function login(e) {
 async function logout() {
   try { await api('/api/logout', { method: 'POST', body: '{}' }); } catch { /* sessão local já descartada */ }
   currentRows = []; visibleRows = [];
-  goLogin(''); message('Sessão encerrada.', 'info');
+  if (document.body.dataset.view === 'search') await novaTransition($('codeForm'), $('loginForm'), () => goLogin(''));
+  else goLogin('');
+  message('Sessão encerrada.', 'info');
 }
 function requireLogin() { goLogin('Sua sessão expirou ou o Protheus recusou as credenciais. Entre novamente.'); }
 
