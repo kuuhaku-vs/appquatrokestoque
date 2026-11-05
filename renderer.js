@@ -327,6 +327,7 @@ function locationScore(r) {
   const am = PRIORITY_ADDR_PREFIXES.some(p => ad.startsWith(p));
   return (wh ? 1 : 0) + (am ? 1 : 0);
 }
+function pinSlot() { const t = document.createElement('span'); t.className = 'loc-tag empty'; t.setAttribute('aria-hidden', 'true'); return t; }
 function locationTag(r) {
   if (!locationScore(r)) return null;
   const parts = [];
@@ -1132,7 +1133,7 @@ function statusPill(ok, rule) {
   return pill;
 }
 // rótulos usados no layout em cartões (celular)
-const GROUP_LABELS = ['Prioridade', 'OP', 'Partida', 'Descrição', 'Rolos', 'Entrada', 'Peso total', 'Gramatura', 'CMC', 'Endereços', ''];
+const GROUP_LABELS = ['Prioridade', 'OP', 'Partida', 'Descrição', 'Rolos', 'Data de entrada', 'Peso total', 'Gramatura', 'CMC', 'Endereços', ''];
 const ROLL_LABELS = ['Prioridade', 'RG', 'Endereço', 'Armazém', 'Data de entrada', 'Peso atual', 'Gramatura', 'CMC', ''];
 function labelCells(tr, labels) { [...tr.children].filter(td => !td.classList.contains('sel-cell')).forEach((td, i) => { if (labels[i]) td.dataset.label = labels[i]; }); }
 function rollTable(g, allRows) {
@@ -1152,7 +1153,7 @@ function rollTable(g, allRows) {
     const pill = statusPill(st.ok, rule);
     pill.title = rule ? `Padrão: ${fmtNum(rule.gramatura, 0, 2)} g/m² ± ${fmtNum(rule.tolerance ?? DEFAULT_TOLERANCE, 0, 2)}% · origem: ${ruleSourceLabel(rule)}` : 'Sem gramatura padrão cadastrada para o grupo';
     status.append(rank, st.defect ? defectPill(st.defect) : om ? opPill() : pill);
-    const lt = locationTag(r); if (lt) status.append(lt);
+    status.append(locationTag(r) || pinSlot());
     if (!st.defect && (om || !st.ok)) { const why = document.createElement('small'); why.className = 'pill-why'; why.textContent = om ? `mesma OP da malha · ${st.ok ? 'aprovado para amostra' : st.reason}` : st.reason; status.append(why); }
     tr.append(status);
     add(rgOf(r) || '—', 'rg-cell');
@@ -1218,7 +1219,7 @@ function renderStock(rows) {
     const sub = document.createElement('small'); sub.className = 'pill-why';
     sub.textContent = gd ? 'malha com defeito — não pegar' : (om ? 'mesma OP da malha · ' : '') + `${approved} de ${n} rolo(s) aprovado(s)`;
     status.append(rank, pill);
-    const best = g.rows.find(r => locationScore(r)); const lt = best && locationTag(best); if (lt) status.append(lt);
+    const best = g.rows.find(r => locationScore(r)); status.append((best && locationTag(best)) || pinSlot());
     status.append(sub); tr.append(status);
     add(g.op || '—', 'op-cell');
     add(g.partida || '—', 'op-cell');

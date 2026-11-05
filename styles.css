@@ -697,3 +697,18 @@ th.num-cell,td.num-cell{text-align:right}
 .detail-grid .detail-rule{display:flex}
 @media(max-width:720px){.detail-grid .detail-line>div{align-items:flex-start;text-align:left}}
 @media(max-width:720px){.priority-cell .pill-why{text-align:left}}
+
+/* coluna Prioridade alinhada: número, selo e 📍 sempre na mesma posição */
+#stockSection th.prio-th,.roll-table thead th:first-child{text-align:left;padding-left:22px}
+#stockSection td.priority-cell,.roll-table td.priority-cell{text-align:left;padding-left:22px;white-space:nowrap}
+.priority-cell .loc-tag{display:inline-block;width:20px;margin-left:4px;text-align:center;vertical-align:middle}
+.priority-cell .loc-tag.empty{visibility:hidden}
+#stockSection .priority-cell .pill-why{text-align:left;margin-left:32px}
+/* detalhes do rolo: alinhados à esquerda, em colunas */
+.detail-row td{text-align:left!important}
+.detail-grid .detail-line>div{align-items:flex-start;text-align:left}
+.detail-grid .detail-rule{align-items:flex-start;text-align:left}
+@media(max-width:720px){#stockSection .priority-cell .pill-why{margin-left:0}#stockSection td.priority-cell{padding-left:0}}
+.priority-cell .priority-pill{min-width:172px;justify-content:center}
+.detail-grid .detail-line,.detail-grid .detail-line:nth-child(2),.detail-grid .detail-line:nth-child(3){grid-template-columns:repeat(5,minmax(0,1fr))}
+@media(max-width:720px){.priority-cell .priority-pill{min-width:0}.detail-grid .detail-line,.detail-grid .detail-line:nth-child(2),.detail-grid .detail-line:nth-child(3){grid-template-columns:repeat(2,minmax(0,1fr))}}
