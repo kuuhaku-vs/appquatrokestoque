@@ -556,8 +556,8 @@ function renderFoldersList() {
     const card = document.createElement('div'); card.className = 'folder-card' + (f.id === d.active ? ' active' : '');
     const info = document.createElement('button'); info.type = 'button'; info.className = 'folder-info';
     const n = document.createElement('b'); n.textContent = '📁 ' + f.name + (f.id === d.active ? '  · ativa' : '');
-    const m = document.createElement('span'); m.textContent = `${st.ops} OP(s) · ${st.done} de ${st.total} rolo(s) pegos${f.createdBy ? ' · criada por ' + f.createdBy : ''} · ${fmtDay(f.createdAt)}`;
-    const bar = document.createElement('i'); bar.className = 'mini-bar'; bar.style.setProperty('--p', st.total ? (st.done / st.total * 100).toFixed(0) + '%' : '0%');
+    const os = opStats(f); const m = document.createElement('span'); m.textContent = `${os.done} de ${os.ops} OP(s) pegas${f.createdBy ? ' · ' + f.createdBy : ''} · ${fmtDay(f.createdAt)}`;
+    const bar = document.createElement('i'); bar.className = 'mini-bar'; bar.style.setProperty('--p', os.ops ? (os.done / os.ops * 100).toFixed(0) + '%' : '0%');
     info.append(n, m, bar);
     info.onclick = () => { if (folderPickPending) { folderPickPending = null; closeFolders(); saveGroupTo(f.id); } else openFolder(f.id); };
     card.append(info);
@@ -589,6 +589,7 @@ async function createFolder(name) {
   message(existed ? `A pasta "${name}" já existia e agora está ativa. Qual código deseja procurar?` : `Pasta "${name}" criada. Qual código deseja procurar? Abra a OP e toque em 💾 Salvar.`, 'success');
 }
 async function openFolder(id) {
+  if (folderOpenId !== id) folderOpenOps.clear();
   folderOpenId = id;
   $('foldersList').classList.add('hidden'); $('folderView').classList.remove('hidden');
   $('foldersModal').classList.remove('hidden');
@@ -604,82 +605,103 @@ async function deleteFolderAction() {
     () => { d.folders = d.folders.filter(x => x.id !== f.id); if (d.active === f.id) d.active = null; return writeFolders(d); });
   if (ok) { openFolders(); message(`Pasta "${f.name}" excluída.`, 'info'); }
 }
+// Pasta: uma linha por OP (caixa + OP/partida + endereços). Tocar abre a seleção de RG logo abaixo.
+// A OP conta como "pega" quando tem pelo menos 1 RG marcado (normalmente basta uma malha).
+const folderOpenOps = new Set();
+const opPicked = it => it.rolos.filter(r => r.picked);
+function opStats(f) { const done = f.items.filter(it => opPicked(it).length).length; return { ops: f.items.length, done, todo: f.items.length - done }; }
+function folderSubText(f) { const s = opStats(f); return `${s.done} de ${s.ops} OP(s) pegas${isShared() ? ' · compartilhada' : ' · só neste aparelho'}`; }
 function renderFolder() {
   const d = readFolders(), f = folderById(d, folderOpenId);
   if (!f) { $('folderView').classList.add('hidden'); $('foldersList').classList.remove('hidden'); renderFoldersList(); return; }
-  const st = folderStats(f);
+  const s = opStats(f);
   $('folderName').textContent = '📁 ' + f.name;
-  $('folderSub').textContent = `${st.ops} OP(s) · ${st.done} de ${st.total} rolo(s) pegos${isShared() ? ' · compartilhada' : ' · só neste aparelho'}`;
-  $('folderBar').style.width = st.total ? (st.done / st.total * 100).toFixed(1) + '%' : '0%';
+  $('folderSub').textContent = folderSubText(f);
+  $('folderBar').style.width = s.ops ? (s.done / s.ops * 100).toFixed(1) + '%' : '0%';
   $('folderUse').textContent = d.active === f.id ? '✓ Pasta ativa' : 'Usar para salvar';
   $('folderUse').disabled = d.active === f.id;
-  document.querySelectorAll('#folderView .seg button').forEach(b => b.classList.toggle('on', b.dataset.show === folderShow));
+  document.querySelectorAll('#folderView .seg button').forEach(b => {
+    b.classList.toggle('on', b.dataset.show === folderShow);
+    const n = b.dataset.show === 'todo' ? s.todo : b.dataset.show === 'done' ? s.done : s.ops;
+    b.textContent = `${{ todo: 'A pegar', all: 'Todas', done: 'Pegas' }[b.dataset.show]} ${n}`;
+  });
   const body = $('folderBody'); body.replaceChildren();
   if (!f.items.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Pasta vazia. Toque em "Pesquisar código", abra a OP e use 💾 Salvar.'; body.append(e); return; }
   const byProd = new Map();
-  f.items.forEach(it => { if (!byProd.has(it.produto)) byProd.set(it.produto, []); byProd.get(it.produto).push(it); });
-  let shown = 0;
-  byProd.forEach((items, prod) => {
-    const sec = document.createElement('section'); sec.className = 'folder-prod';
-    const h = document.createElement('div'); h.className = 'folder-prod-head';
-    const t = document.createElement('b'); t.textContent = prod;
-    const ds = document.createElement('span'); ds.textContent = items[0].descricao || '';
-    const again = document.createElement('button'); again.type = 'button'; again.className = 'link-btn'; again.textContent = '🔍 Pesquisar de novo';
-    again.onclick = () => { closeFolders(); rerun(prod); };
-    h.append(t, ds, again); sec.append(h);
-    let secShown = 0;
-    items.forEach(it => {
-      const rolls = it.rolos.filter(r => folderShow === 'all' || (folderShow === 'done' ? r.picked : !r.picked));
-      if (!rolls.length) return;
-      secShown++; shown += rolls.length;
-      const card = document.createElement('div'); card.className = 'folder-op' + (it.rolos.every(r => r.picked) ? ' all-done' : '');
-      const top = document.createElement('div'); top.className = 'folder-op-top';
-      const op = document.createElement('b'); op.textContent = `OP ${it.op || '—'} · Partida ${it.partida || '—'}`;
-      const cnt = document.createElement('span'); cnt.className = 'folder-op-count'; cnt.textContent = `${it.rolos.filter(r => r.picked).length}/${it.rolos.length}`;
-      const del = document.createElement('button'); del.type = 'button'; del.className = 'remove-priority'; del.textContent = '×'; del.title = 'Tirar esta OP da pasta'; del.setAttribute('aria-label', 'Tirar esta OP da pasta');
-      del.onclick = async () => { if (!confirm(`Tirar a OP ${it.op} da pasta "${f.name}"?`)) return; await removeItemFrom(f.id, it.key); updateSaveBtn(); };
-      top.append(op, cnt, del);
-      const ad = document.createElement('div'); ad.className = 'folder-op-addr'; ad.textContent = '📍 ' + (it.enderecos || 'sem endereço');
-      const st2 = document.createElement('div'); st2.className = 'folder-op-status'; st2.textContent = [it.status || '', it.savedBy ? 'salvo por ' + it.savedBy : ''].filter(Boolean).join(' · ');
-      if (/^DEFEITO/.test(it.status || '')) st2.classList.add('bad');
-      card.append(top, ad, st2);
-      const ul = document.createElement('div'); ul.className = 'folder-rolls';
-      rolls.forEach(r => {
-        const l = document.createElement('label'); l.className = 'folder-roll' + (r.picked ? ' picked' : '');
-        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!r.picked; cb.setAttribute('aria-label', `Peguei o rolo ${r.rg}`);
-        cb.onchange = () => togglePicked(f.id, it.key, r, cb.checked, l, cnt);
-        const rg = document.createElement('b'); rg.textContent = r.rg || '—';
-        const ed = document.createElement('span'); ed.className = 'roll-addr'; ed.textContent = r.endereco || '—';
-        const meta = document.createElement('small');
-        meta.textContent = [r.armazem ? 'Arm. ' + r.armazem : '', r.peso !== null && r.peso !== undefined ? fmtNum(r.peso, 2) + ' kg' : '', r.gramatura ? fmtNum(r.gramatura, 0, 2) + ' g/m²' : '', r.picked && r.pickedBy ? '✓ ' + r.pickedBy : ''].filter(Boolean).join(' · ');
-        l.append(cb, rg, ed, meta); ul.append(l);
-      });
-      card.append(ul); sec.append(card);
-    });
-    if (secShown) body.append(sec);
+  f.items.forEach(it => {
+    const has = opPicked(it).length > 0, keep = folderOpenOps.has(it.key); // OP aberta continua na tela até fechar
+    if (folderShow === 'todo' && has && !keep) return;
+    if (folderShow === 'done' && !has && !keep) return;
+    if (!byProd.has(it.produto)) byProd.set(it.produto, []);
+    byProd.get(it.produto).push(it);
   });
-  if (!shown) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = folderShow === 'todo' ? '🎉 Tudo pego nesta pasta.' : 'Nenhum rolo marcado como pego ainda.'; body.append(e); }
+  if (!byProd.size) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = folderShow === 'todo' ? '🎉 Todas as OPs desta pasta já foram pegas.' : 'Nenhuma OP pega ainda.'; body.append(e); return; }
+  byProd.forEach((items, prod) => {
+    const sec = document.createElement('section'); sec.className = 'fp';
+    const h = document.createElement('div'); h.className = 'fp-head';
+    const t = document.createElement('span'); t.innerHTML = '';
+    const code = document.createElement('b'); code.textContent = prod;
+    const ds = document.createElement('small'); ds.textContent = items[0].descricao || '';
+    t.append(code, ds);
+    const again = document.createElement('button'); again.type = 'button'; again.className = 'icon-btn'; again.textContent = '🔍'; again.title = 'Pesquisar este código de novo'; again.setAttribute('aria-label', `Pesquisar ${prod} de novo`);
+    again.onclick = () => { closeFolders(); rerun(prod); };
+    h.append(t, again); sec.append(h);
+    const list = document.createElement('div'); list.className = 'fp-list';
+    items.forEach(it => list.append(opRow(f, it)));
+    sec.append(list); body.append(sec);
+  });
 }
-// marca/desmarca: muda na hora na tela e grava (planilha ou aparelho); se falhar, volta
-async function togglePicked(folderId, key, r, picked, label, cnt) {
-  const apply = d => { const f = folderById(d, folderId), it = f && f.items.find(x => x.key === key), rr = it && it.rolos.find(x => x.rg === r.rg && x.endereco === r.endereco); if (rr) { rr.picked = picked; rr.pickedAt = picked ? Date.now() : null; rr.pickedBy = picked ? (currentUser || '') : ''; } return { f, it }; };
-  label.classList.toggle('picked', picked);
-  const showNow = () => {
-    const d = readFolders(), f = folderById(d, folderId), it = f && f.items.find(x => x.key === key); if (!f || !it) return;
-    const s2 = folderStats(f); $('folderSub').textContent = `${s2.ops} OP(s) · ${s2.done} de ${s2.total} rolo(s) pegos${isShared() ? ' · compartilhada' : ' · só neste aparelho'}`;
-    $('folderBar').style.width = s2.total ? (s2.done / s2.total * 100).toFixed(1) + '%' : '0%';
-    cnt.textContent = `${it.rolos.filter(x => x.picked).length}/${it.rolos.length}`;
-  };
+function opRow(f, it) {
+  const picked = opPicked(it), open = folderOpenOps.has(it.key), bad = /^DEFEITO/.test(it.status || '');
+  const wrap = document.createElement('div'); wrap.className = 'fo' + (picked.length ? ' done' : '') + (open ? ' open' : '') + (bad ? ' bad' : '');
+  const row = document.createElement('button'); row.type = 'button'; row.className = 'fo-row'; row.setAttribute('aria-expanded', String(open));
+  row.title = open ? 'Fechar a seleção de RG' : 'Escolher o RG que pegou';
+  const box = document.createElement('span'); box.className = 'fo-box'; box.textContent = picked.length ? '✓' : '';
+  const main = document.createElement('span'); main.className = 'fo-main';
+  const op = document.createElement('b'); op.textContent = `OP ${it.op || '—'} · ${it.partida || '—'}`;
+  const ad = document.createElement('small'); ad.textContent = (bad ? '✕ ' + it.status.replace(/^DEFEITO:\s*/, '') + ' · ' : '') + (it.enderecos ? it.enderecos.split(' - ').join(' · ') : 'sem endereço');
+  main.append(op, ad);
+  const side = document.createElement('span'); side.className = 'fo-side';
+  side.textContent = picked.length ? picked.map(r => r.rg).join(', ') : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
+  const chev = document.createElement('span'); chev.className = 'fo-chev'; chev.textContent = '›';
+  row.append(box, main, side, chev);
+  row.onclick = () => { open ? folderOpenOps.delete(it.key) : folderOpenOps.add(it.key); renderFolder(); };
+  wrap.append(row);
+  if (open) {
+    const panel = document.createElement('div'); panel.className = 'fo-panel';
+    const hint = document.createElement('p'); hint.className = 'fo-hint'; hint.textContent = 'Toque no RG que você pegou:';
+    const grid = document.createElement('div'); grid.className = 'rg-grid';
+    it.rolos.forEach(r => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'rg-chip' + (r.picked ? ' on' : '');
+      b.setAttribute('aria-pressed', String(!!r.picked));
+      const a = document.createElement('b'); a.textContent = (r.picked ? '✓ ' : '') + (r.rg || '—');
+      const m = document.createElement('small'); m.textContent = [r.endereco, r.peso !== null && r.peso !== undefined ? fmtNum(r.peso, 2) + ' kg' : ''].filter(Boolean).join(' · ') + (r.picked && r.pickedBy ? ' · ' + r.pickedBy : '');
+      b.append(a, m);
+      b.onclick = () => togglePicked(f.id, it.key, r, !r.picked);
+      grid.append(b);
+    });
+    const foot = document.createElement('div'); foot.className = 'fo-foot';
+    const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'link-btn danger-link'; rm.textContent = 'Tirar da pasta';
+    rm.onclick = async () => { if (!confirm(`Tirar a OP ${it.op} da pasta "${f.name}"?`)) return; folderOpenOps.delete(it.key); await removeItemFrom(f.id, it.key); updateSaveBtn(); };
+    const close = document.createElement('button'); close.type = 'button'; close.className = 'link-btn'; close.textContent = 'Fechar';
+    close.onclick = () => { folderOpenOps.delete(it.key); renderFolder(); };
+    foot.append(rm, close);
+    panel.append(hint, grid, foot); wrap.append(panel);
+  }
+  return wrap;
+}
+// marca/desmarca o RG: muda na hora na tela e grava (planilha ou aparelho); se falhar, volta
+async function togglePicked(folderId, key, r, picked) {
+  const apply = d => { const f = folderById(d, folderId), it = f && f.items.find(x => x.key === key), rr = it && it.rolos.find(x => x.rg === r.rg && x.endereco === r.endereco); if (rr) { rr.picked = picked; rr.pickedAt = picked ? Date.now() : null; rr.pickedBy = picked ? (currentUser || '') : ''; } return f; };
   if (isShared()) {
-    const c = lsGet(FCACHE_KEY, { folders: [] }); apply(c); lsSet(FCACHE_KEY, c); showNow();
+    const c = lsGet(FCACHE_KEY, { folders: [] }); apply(c); lsSet(FCACHE_KEY, c); renderFolder();
     folderBusy = true;
     try { await remote('setPicked', { folderId, itemKey: key, rg: r.rg, endereco: r.endereco, picked }); }
     catch (e) { message(`${e.message} A marcação não foi gravada.`, 'error'); await syncFolders(true); }
-    finally { folderBusy = false; }
+    finally { folderBusy = false; rerenderFolders(); }
   } else {
-    const d = readFolders(); apply(d); d.folders.find(f => f.id === folderId).updatedAt = Date.now(); writeFolders(d); showNow();
+    const d = readFolders(), f = apply(d); if (f) f.updatedAt = Date.now(); writeFolders(d); renderFolder();
   }
-  if (folderShow !== 'all') setTimeout(rerenderFolders, 300); else if (isShared()) rerenderFolders();
 }
 // planilha: pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;status
 function exportFolder() {

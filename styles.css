@@ -385,6 +385,46 @@ th.num-cell,td.num-cell{text-align:right}
 .shared-form .primary{height:40px}
 .migrate-btn{flex-basis:100%;height:38px!important;margin-top:4px}
 
+/* pasta aberta: lista limpa de OPs */
+.fp{margin-bottom:6px}
+.fp-head{display:flex;align-items:center;gap:8px;padding:2px 2px 6px}
+.fp-head>span{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.fp-head b{font-family:Consolas,"Courier New",monospace;font-size:13px;color:var(--accent);letter-spacing:.03em}
+.fp-head small{font-size:11px;color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icon-btn{width:32px;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:14px;line-height:1}
+.icon-btn:hover{background:var(--accent-soft)}
+.fp-list{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.fo+.fo{border-top:1px solid var(--line-2)}
+.fo-row{width:100%;display:flex;align-items:center;gap:12px;padding:12px 14px;border:0;background:transparent;text-align:left;color:var(--ink)}
+.fo-row:hover{background:var(--surface-2)}
+.fo-box{flex:none;width:24px;height:24px;border:2px solid var(--field-line);border-radius:7px;display:grid;place-items:center;font-size:14px;font-weight:800;color:#fff}
+.fo.done .fo-box{background:var(--ok);border-color:var(--ok)}
+.fo-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.fo-main b{font-size:13.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fo-main small{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fo.done .fo-main b{color:var(--ok)}
+.fo.bad .fo-main small{color:var(--bad);font-weight:650}
+.fo-side{flex:none;max-width:38%;font-size:11.5px;color:var(--faint);text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fo.done .fo-side{color:var(--ok);font-weight:700}
+.fo-chev{flex:none;color:var(--faint);font-size:18px;transition:transform .15s}
+.fo.open .fo-chev{transform:rotate(90deg)}
+.fo.open{background:var(--surface-2)}
+.fo-panel{padding:0 14px 12px 50px}
+.fo-hint{margin:0 0 8px;font-size:11px;color:var(--muted)}
+.rg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}
+.rg-chip{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);text-align:left;color:var(--ink)}
+.rg-chip b{font-size:13px;font-variant-numeric:tabular-nums}
+.rg-chip small{font-size:10.5px;color:var(--muted)}
+.rg-chip:hover{border-color:var(--accent-line)}
+.rg-chip.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.rg-chip.on small{color:rgba(255,255,255,.85)}
+.fo-foot{display:flex;justify-content:space-between;margin-top:8px}
+.danger-link{color:var(--bad)!important}
+.folder-tools{margin:2px 0 12px}
+.folder-tools .secondary{height:34px}
+#folderView .modal-heading h2{font-size:19px;margin:2px 0 3px}
+.folder-progress{height:5px;margin:10px 0 12px}
+
 /* histórico */
 .history-filter{margin-top:16px;height:38px;border:1px solid var(--field-line);border-radius:9px;padding:0 12px;font-size:12.5px;background:var(--field);outline:none}
 .history-filter:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--focus)}
@@ -539,7 +579,10 @@ th.num-cell,td.num-cell{text-align:right}
   #defectBtn,#saveGroupBtn{flex-basis:calc(50% - 4px)}
   .folders-items{max-height:none}
   .new-folder .primary{padding:0 12px}
-  .seg button{padding:9px 12px}
+  .seg button{padding:9px 11px}
+  .fo-panel{padding:0 12px 12px}
+  .rg-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fo-side{max-width:30%}
   .defect-opt{padding:11px 14px;font-size:14px}
   .defect-modal .priority-actions>.primary{flex:1;height:44px}
 
