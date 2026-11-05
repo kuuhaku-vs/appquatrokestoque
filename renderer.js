@@ -334,6 +334,226 @@ function refreshAfterDefect() {
   if (key && !$('groupModal').classList.contains('hidden')) { const i = currentGroups.findIndex(g => g.key === key); if (i >= 0) openGroup(i); }
 }
 
+/* ------------------------------- pastas ------------------------------- */
+// Pastas de separação: OPs salvas com seus rolos, para buscar depois e marcar o que já foi pego.
+// Ficam neste aparelho (navegador); exportar/importar planilha leva de um aparelho para outro.
+const FOLDERS_KEY = 'nova_pastas_v1';
+let folderOpenId = null, folderShow = 'todo', folderPickPending = null;
+function readFolders() {
+  try { const d = JSON.parse(localStorage.getItem(FOLDERS_KEY) || 'null'); if (d && Array.isArray(d.folders)) return d; } catch { /* sem armazenamento */ }
+  return { active: null, folders: [] };
+}
+function writeFolders(d) {
+  try { localStorage.setItem(FOLDERS_KEY, JSON.stringify(d)); return true; }
+  catch { message('Não foi possível guardar a pasta neste aparelho (armazenamento cheio ou bloqueado).', 'error'); return false; }
+}
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const folderById = (d, id) => d.folders.find(f => f.id === id) || null;
+const activeFolder = () => { const d = readFolders(); return folderById(d, d.active); };
+const itemKey = (prod, op, partida) => `${String(prod || '').trim().toUpperCase()}|${String(op || '').trim()}|${String(partida || '').trim()}`;
+function folderStats(f) {
+  let total = 0, done = 0;
+  f.items.forEach(it => it.rolos.forEach(r => { total++; if (r.picked) done++; }));
+  return { ops: f.items.length, total, done };
+}
+function updateFolderUi() {
+  const f = activeFolder();
+  $('activeFolderBar').classList.toggle('hidden', !f);
+  if (f) $('activeFolderName').textContent = f.name;
+  $('foldersBtn2Label').textContent = f ? f.name : 'Pastas';
+  $('foldersBtn2').classList.toggle('active', !!f);
+  const h = document.querySelector('#codeForm h1');
+  if (h) h.textContent = f ? 'Qual código deseja procurar?' : 'Consultar material';
+  updateSaveBtn();
+}
+function updateSaveBtn() {
+  const btn = $('saveGroupBtn'), g = currentGroups[groupIndex];
+  if (!btn || !g) return;
+  const f = activeFolder(), k = itemKey(field(g.rows[0], 'Z5_PROD'), g.op, g.partida);
+  const saved = f && f.items.some(it => it.key === k);
+  btn.classList.toggle('saved', !!saved);
+  btn.textContent = saved ? `✓ Salvo em ${f.name}` : (f ? `💾 Salvar em ${f.name}` : '💾 Salvar');
+  btn.title = saved ? 'Toque para atualizar os rolos ou remover da pasta' : 'Salvar esta OP e os rolos numa pasta';
+}
+function snapshotGroup(g) {
+  const prod = String(field(g.rows[0], 'Z5_PROD') || selected?.code || '').trim().toUpperCase();
+  const addrs = [...new Set(g.rows.map(addrOf).filter(Boolean))];
+  return {
+    key: itemKey(prod, g.op, g.partida), produto: prod, descricao: selected?.description || groupLabel(g.rows[0]),
+    op: g.op, partida: g.partida, enderecos: addrs.join(' - '), savedAt: Date.now(),
+    status: (() => { const d = defectFor(g.rows[0]); return d ? 'DEFEITO: ' + defectText(d) : opMatch(g.rows[0]) ? 'INDICADO POR OP' : g.rows.some(priorityMatch) ? 'APROVADO P/ AMOSTRA' : 'NÃO INDICADO'; })(),
+    rolos: g.rows.map(r => ({ rg: rgOf(r), endereco: addrOf(r), armazem: String(field(r, 'Z5_ALMOXA') ?? '').trim(), peso: numericValue(field(r, 'Z5_PESOATU')), gramatura: gramaturaValue(r), cmc: numericValue(field(r, 'Z5_CMC')), picked: false }))
+      .sort((a, b) => a.endereco.localeCompare(b.endereco, 'pt-BR', { numeric: true }))
+  };
+}
+function saveGroupTo(folderId) {
+  const g = currentGroups[groupIndex]; if (!g) return;
+  const d = readFolders(), f = folderById(d, folderId); if (!f) return;
+  const snap = snapshotGroup(g), old = f.items.find(it => it.key === snap.key);
+  if (old) { const picked = new Set(old.rolos.filter(r => r.picked).map(r => r.rg)); snap.rolos.forEach(r => { r.picked = picked.has(r.rg); }); f.items[f.items.indexOf(old)] = snap; }
+  else f.items.push(snap);
+  d.active = f.id;
+  if (!writeFolders(d)) return;
+  updateFolderUi();
+  message(`${old ? 'Atualizado' : 'Salvo'} em "${f.name}": OP ${snap.op} · ${snap.rolos.length} rolo(s) · ${snap.enderecos || 'sem endereço'}.`, 'success');
+}
+function onSaveGroup() {
+  const g = currentGroups[groupIndex]; if (!g) return;
+  const f = activeFolder();
+  if (!f) { folderPickPending = true; openFolders(); return; }
+  const k = itemKey(field(g.rows[0], 'Z5_PROD'), g.op, g.partida);
+  if (f.items.some(it => it.key === k)) {
+    if (confirm(`A OP ${g.op} já está na pasta "${f.name}".\n\nOK = remover da pasta\nCancelar = atualizar os rolos (mantém o que já foi pego)`)) {
+      const d = readFolders(), ff = folderById(d, f.id); ff.items = ff.items.filter(it => it.key !== k); writeFolders(d); updateFolderUi();
+      return message(`OP ${g.op} removida da pasta "${f.name}".`, 'info');
+    }
+  }
+  saveGroupTo(f.id);
+}
+function fmtDay(ts) { const d = new Date(ts); return isNaN(d) ? '' : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
+function openFolders() {
+  $('folderView').classList.add('hidden'); $('foldersList').classList.remove('hidden');
+  $('folderPickMsg').classList.toggle('hidden', !folderPickPending);
+  if (folderPickPending) $('folderPickMsg').textContent = 'Escolha a pasta onde salvar esta OP, ou crie uma nova.';
+  renderFoldersList();
+  $('foldersModal').classList.remove('hidden');
+  if (!readFolders().folders.length || folderPickPending) $('newFolderName').focus();
+}
+function closeFolders() { $('foldersModal').classList.add('hidden'); folderPickPending = null; }
+function renderFoldersList() {
+  const d = readFolders(), box = $('foldersItems'); box.replaceChildren();
+  if (!d.folders.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Nenhuma pasta ainda. Dê um nome acima e toque em Criar pasta.'; box.append(e); return; }
+  [...d.folders].sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt)).forEach(f => {
+    const st = folderStats(f);
+    const card = document.createElement('div'); card.className = 'folder-card' + (f.id === d.active ? ' active' : '');
+    const info = document.createElement('button'); info.type = 'button'; info.className = 'folder-info';
+    const n = document.createElement('b'); n.textContent = '📁 ' + f.name + (f.id === d.active ? '  · ativa' : '');
+    const m = document.createElement('span'); m.textContent = `${st.ops} OP(s) · ${st.done} de ${st.total} rolo(s) pegos · ${fmtDay(f.createdAt)}`;
+    const bar = document.createElement('i'); bar.className = 'mini-bar'; bar.style.setProperty('--p', st.total ? (st.done / st.total * 100).toFixed(0) + '%' : '0%');
+    info.append(n, m, bar);
+    info.onclick = () => { if (folderPickPending) { folderPickPending = null; closeFolders(); saveGroupTo(f.id); } else openFolder(f.id); };
+    card.append(info);
+    if (folderPickPending) { const b = document.createElement('button'); b.type = 'button'; b.className = 'primary'; b.textContent = 'Salvar aqui'; b.onclick = info.onclick; card.append(b); }
+    box.append(card);
+  });
+}
+function createFolder(name) {
+  name = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+  if (!name) { $('newFolderName').focus(); return message('Dê um nome para a pasta.', 'error'); }
+  const d = readFolders();
+  if (d.folders.some(f => f.name.toLowerCase() === name.toLowerCase())) return message(`Já existe uma pasta "${name}". Abra-a na lista.`, 'error');
+  const f = { id: newId(), name, createdAt: Date.now(), updatedAt: Date.now(), items: [] };
+  d.folders.push(f); d.active = f.id;
+  if (!writeFolders(d)) return;
+  $('newFolderName').value = '';
+  updateFolderUi();
+  if (folderPickPending) { folderPickPending = null; closeFolders(); return saveGroupTo(f.id); }
+  closeFolders();
+  // pasta criada: volta para a pesquisa perguntando o código
+  if (document.body.dataset.view !== 'search') goSearch(); else { $('codeInput').value = ''; updateCodeInput(); $('codeInput').focus(); }
+  message(`Pasta "${name}" criada. Qual código deseja procurar? Abra a OP e toque em 💾 Salvar.`, 'success');
+}
+function openFolder(id) {
+  folderOpenId = id;
+  $('foldersList').classList.add('hidden'); $('folderView').classList.remove('hidden');
+  $('foldersModal').classList.remove('hidden');
+  renderFolder();
+}
+function renderFolder() {
+  const d = readFolders(), f = folderById(d, folderOpenId);
+  if (!f) { openFolders(); return; }
+  const st = folderStats(f);
+  $('folderName').textContent = '📁 ' + f.name;
+  $('folderSub').textContent = `${st.ops} OP(s) · ${st.done} de ${st.total} rolo(s) pegos`;
+  $('folderBar').style.width = st.total ? (st.done / st.total * 100).toFixed(1) + '%' : '0%';
+  $('folderUse').textContent = d.active === f.id ? '✓ Pasta ativa' : 'Usar para salvar';
+  $('folderUse').disabled = d.active === f.id;
+  document.querySelectorAll('#folderView .seg button').forEach(b => b.classList.toggle('on', b.dataset.show === folderShow));
+  const body = $('folderBody'); body.replaceChildren();
+  if (!f.items.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Pasta vazia. Toque em "Pesquisar código", abra a OP e use 💾 Salvar.'; body.append(e); return; }
+  const byProd = new Map();
+  f.items.forEach(it => { if (!byProd.has(it.produto)) byProd.set(it.produto, []); byProd.get(it.produto).push(it); });
+  let shown = 0;
+  byProd.forEach((items, prod) => {
+    const sec = document.createElement('section'); sec.className = 'folder-prod';
+    const h = document.createElement('div'); h.className = 'folder-prod-head';
+    const t = document.createElement('b'); t.textContent = prod;
+    const ds = document.createElement('span'); ds.textContent = items[0].descricao || '';
+    const again = document.createElement('button'); again.type = 'button'; again.className = 'link-btn'; again.textContent = '🔍 Pesquisar de novo';
+    again.onclick = () => { closeFolders(); rerun(prod); };
+    h.append(t, ds, again); sec.append(h);
+    let secShown = 0;
+    items.forEach(it => {
+      const rolls = it.rolos.filter(r => folderShow === 'all' || (folderShow === 'done' ? r.picked : !r.picked));
+      if (!rolls.length) return;
+      secShown++; shown += rolls.length;
+      const card = document.createElement('div'); card.className = 'folder-op' + (it.rolos.every(r => r.picked) ? ' all-done' : '');
+      const top = document.createElement('div'); top.className = 'folder-op-top';
+      const op = document.createElement('b'); op.textContent = `OP ${it.op || '—'} · Partida ${it.partida || '—'}`;
+      const cnt = document.createElement('span'); cnt.className = 'folder-op-count'; cnt.textContent = `${it.rolos.filter(r => r.picked).length}/${it.rolos.length}`;
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'remove-priority'; del.textContent = '×'; del.title = 'Tirar esta OP da pasta'; del.setAttribute('aria-label', 'Tirar esta OP da pasta');
+      del.onclick = () => { if (!confirm(`Tirar a OP ${it.op} da pasta "${f.name}"?`)) return; const dd = readFolders(), ff = folderById(dd, f.id); ff.items = ff.items.filter(x => x.key !== it.key); ff.updatedAt = Date.now(); writeFolders(dd); renderFolder(); updateSaveBtn(); };
+      top.append(op, cnt, del);
+      const ad = document.createElement('div'); ad.className = 'folder-op-addr'; ad.textContent = '📍 ' + (it.enderecos || 'sem endereço');
+      const st2 = document.createElement('div'); st2.className = 'folder-op-status'; st2.textContent = it.status || '';
+      if (/^DEFEITO/.test(it.status || '')) st2.classList.add('bad');
+      card.append(top, ad, st2);
+      const ul = document.createElement('div'); ul.className = 'folder-rolls';
+      rolls.forEach(r => {
+        const l = document.createElement('label'); l.className = 'folder-roll' + (r.picked ? ' picked' : '');
+        const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!r.picked; cb.setAttribute('aria-label', `Peguei o rolo ${r.rg}`);
+        cb.onchange = () => {
+          const dd = readFolders(), ff = folderById(dd, f.id), ii = ff && ff.items.find(x => x.key === it.key), rr = ii && ii.rolos.find(x => x.rg === r.rg && x.endereco === r.endereco);
+          if (!rr) return; rr.picked = cb.checked; rr.pickedAt = cb.checked ? Date.now() : null; ff.updatedAt = Date.now();
+          if (writeFolders(dd)) { if (folderShow === 'all') { l.classList.toggle('picked', cb.checked); const s2 = folderStats(ff); $('folderSub').textContent = `${s2.ops} OP(s) · ${s2.done} de ${s2.total} rolo(s) pegos`; $('folderBar').style.width = s2.total ? (s2.done / s2.total * 100).toFixed(1) + '%' : '0%'; cnt.textContent = `${ii.rolos.filter(x => x.picked).length}/${ii.rolos.length}`; } else setTimeout(renderFolder, 250); }
+        };
+        const rg = document.createElement('b'); rg.textContent = r.rg || '—';
+        const ed = document.createElement('span'); ed.className = 'roll-addr'; ed.textContent = r.endereco || '—';
+        const meta = document.createElement('small'); meta.textContent = [r.armazem ? 'Arm. ' + r.armazem : '', r.peso !== null && r.peso !== undefined ? fmtNum(r.peso, 2) + ' kg' : '', r.gramatura ? fmtNum(r.gramatura, 0, 2) + ' g/m²' : ''].filter(Boolean).join(' · ');
+        l.append(cb, rg, ed, meta); ul.append(l);
+      });
+      card.append(ul); sec.append(card);
+    });
+    if (secShown) body.append(sec);
+  });
+  if (!shown) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = folderShow === 'todo' ? '🎉 Tudo pego nesta pasta.' : 'Nenhum rolo marcado como pego ainda.'; body.append(e); }
+}
+// planilha: pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;status
+function exportFolder() {
+  const f = folderById(readFolders(), folderOpenId); if (!f) return;
+  const q = v => { const t = String(v ?? '').replace(/[\r\n]+/g, ' '); return /[;"]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  const num = v => (v === null || v === undefined || v === '') ? '' : String(v).replace('.', ',');
+  const lines = ['pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;status'];
+  f.items.forEach(it => it.rolos.forEach(r => lines.push([f.name, it.produto, it.descricao, it.op, it.partida, it.enderecos, r.rg, r.endereco, r.armazem, num(r.peso), num(r.gramatura), num(r.cmc), r.picked ? 'sim' : 'nao', it.status].map(q).join(';'))));
+  const blob = new Blob(['﻿' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `PASTA_${f.name.replace(/[^\w-]+/g, '_')}.csv`;
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  message(`Planilha da pasta "${f.name}" baixada.`, 'success');
+}
+function splitCsv(line) { const out = []; let v = '', q = false; for (let i = 0; i < line.length; i++) { const c = line[i]; if (c === '"' && q && line[i + 1] === '"') { v += '"'; i++; } else if (c === '"') q = !q; else if (c === ';' && !q) { out.push(v.trim()); v = ''; } else v += c; } out.push(v.trim()); return out; }
+function importFolders(text) {
+  const lines = String(text || '').replace(/^﻿/, '').split(/\r?\n/).filter(l => l.trim());
+  const head = splitCsv(lines[0] || '').map(h => h.toLowerCase()), ix = k => head.indexOf(k);
+  if (ix('pasta') < 0 || ix('op') < 0 || ix('rg') < 0) throw new Error('Planilha inválida: use um arquivo exportado pelo NOVA (botão Exportar planilha).');
+  const d = readFolders(); let nFolders = 0, nRolls = 0;
+  lines.slice(1).forEach(l => {
+    const c = splitCsv(l), g = k => (ix(k) >= 0 ? c[ix(k)] ?? '' : '');
+    const name = g('pasta').trim(); if (!name) return;
+    let f = d.folders.find(x => x.name.toLowerCase() === name.toLowerCase());
+    if (!f) { f = { id: newId(), name, createdAt: Date.now(), updatedAt: Date.now(), items: [] }; d.folders.push(f); nFolders++; }
+    const key = itemKey(g('produto'), g('op'), g('partida'));
+    let it = f.items.find(x => x.key === key);
+    if (!it) { it = { key, produto: g('produto').toUpperCase(), descricao: g('descricao'), op: g('op'), partida: g('partida'), enderecos: g('enderecos'), status: g('status'), savedAt: Date.now(), rolos: [] }; f.items.push(it); }
+    const pn = v => { const n = parseNumber(v); return n === null ? null : n; };
+    const roll = { rg: g('rg'), endereco: g('endereco'), armazem: g('armazem'), peso: pn(g('peso')), gramatura: pn(g('gramatura')), cmc: pn(g('cmc')), picked: /^(sim|s|1|true)$/i.test(g('pego')) };
+    const ex = it.rolos.find(r => r.rg === roll.rg && r.endereco === roll.endereco);
+    if (ex) ex.picked = ex.picked || roll.picked; else it.rolos.push(roll);
+    nRolls++; f.updatedAt = Date.now();
+  });
+  writeFolders(d);
+  return { nFolders, nRolls };
+}
+
 /* ------------------------------- punhos ------------------------------- */
 // Malha 40M090900010 → punho 40P090900010 (troca o M da 3ª posição pelo P).
 let punhoSelecting = false;        // caixinhas de seleção visíveis na malha
@@ -674,6 +894,7 @@ function openGroup(index) {
   $('groupDefect').classList.toggle('hidden', !gd);
   if (gd) $('groupDefect').textContent = `✕ Malha com defeito: ${defectText(gd)}${gd.observacao ? ' — ' + gd.observacao : ''}${gd.usuario ? ' (registrado por ' + gd.usuario + (gd.data ? ' em ' + gd.data : '') + ')' : ''}`;
   $('defectBtn').textContent = gd ? '✎ Editar defeito' : '⚠ Indicar defeito';
+  updateSaveBtn();
   $('groupTable').scrollTop = 0;
   $('groupPrev').disabled = index <= 0; $('groupNext').disabled = index >= currentGroups.length - 1;
   $('groupModal').classList.remove('hidden');
@@ -905,6 +1126,21 @@ $('clearHistory').onclick = () => { if (!getHistory().length || !confirm('Apagar
 $('historyModal').addEventListener('mousedown', e => { if (e.target === $('historyModal')) closeHistory(); });
 $('addressFilter').onchange = applyFilters;
 $('punhoBtn').onclick = togglePunhoMode;
+$('foldersBtn').onclick = openFolders; $('foldersBtn2').onclick = () => { const f = activeFolder(); f ? openFolder(f.id) : openFolders(); };
+$('activeFolderOpen').onclick = () => { const f = activeFolder(); if (f) openFolder(f.id); };
+$('activeFolderEnd').onclick = () => { const d = readFolders(); d.active = null; writeFolders(d); updateFolderUi(); message('Pasta encerrada. As OPs salvas continuam em 📁 Pastas.', 'info'); };
+$('saveGroupBtn').onclick = onSaveGroup;
+$('newFolderForm').onsubmit = e => { e.preventDefault(); createFolder($('newFolderName').value); };
+$('closeFolders').onclick = $('closeFolders2').onclick = $('foldersClose2').onclick = closeFolders;
+$('folderBack').onclick = openFolders;
+$('folderSearch').onclick = () => { closeFolders(); goSearch(); };
+$('folderExport').onclick = exportFolder;
+$('folderUse').onclick = () => { const d = readFolders(); d.active = folderOpenId; writeFolders(d); updateFolderUi(); renderFolder(); message('Pasta ativa: as próximas OPs salvas vão para ela.', 'success'); };
+$('folderDelete').onclick = () => { const d = readFolders(), f = folderById(d, folderOpenId); if (!f || !confirm(`Excluir a pasta "${f.name}" e todas as OPs salvas nela?`)) return; d.folders = d.folders.filter(x => x.id !== f.id); if (d.active === f.id) d.active = null; writeFolders(d); updateFolderUi(); openFolders(); message(`Pasta "${f.name}" excluída.`, 'info'); };
+document.querySelectorAll('#folderView .seg button').forEach(b => { b.onclick = () => { folderShow = b.dataset.show; renderFolder(); }; });
+$('foldersImport').onclick = () => $('foldersFile').click();
+$('foldersFile').onchange = async () => { const f = $('foldersFile').files[0]; $('foldersFile').value = ''; if (!f) return; try { const r = importFolders(await f.text()); renderFoldersList(); updateFolderUi(); message(`Planilha importada: ${r.nRolls} rolo(s)${r.nFolders ? `, ${r.nFolders} pasta(s) nova(s)` : ''}.`, 'success'); } catch (e) { message(e.message, 'error'); } };
+$('foldersModal').addEventListener('mousedown', e => { if (e.target === $('foldersModal')) closeFolders(); });
 $('phoneBtn').classList.toggle('hidden', !IS_THIS_PC);
 $('phoneBtn').onclick = openPhone; $('closePhone').onclick = () => $('phoneModal').classList.add('hidden');
 $('phoneModal').addEventListener('mousedown', e => { if (e.target === $('phoneModal')) $('phoneModal').classList.add('hidden'); });
@@ -940,7 +1176,8 @@ $('dismissMessage').onclick = clearMessage;
 $('closeResults').onclick = goSearch;
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (!$('phoneModal').classList.contains('hidden')) $('phoneModal').classList.add('hidden');
+  if (!$('foldersModal').classList.contains('hidden')) closeFolders();
+  else if (!$('phoneModal').classList.contains('hidden')) $('phoneModal').classList.add('hidden');
   else if (!$('defectModal').classList.contains('hidden')) closeDefect();
   else if (!$('groupModal').classList.contains('hidden')) closeGroup();
   else if (!$('historyModal').classList.contains('hidden')) closeHistory();
@@ -966,6 +1203,7 @@ $('priorityModal').addEventListener('mousedown', e => { if (e.target === $('prio
 $('togglePassword').onclick = () => { const p = $('password'), show = p.type === 'password'; p.type = show ? 'text' : 'password'; $('togglePassword').textContent = show ? '◎' : '◉'; $('togglePassword').setAttribute('aria-label', show ? 'Ocultar senha' : 'Mostrar senha'); };
 
 updateFilterHint();
+updateFolderUi();
 setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 (async () => {
   try { await loadPriority(); } catch (e) { console.warn(e); }

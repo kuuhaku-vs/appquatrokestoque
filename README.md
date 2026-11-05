@@ -19,6 +19,12 @@ O celular consulta o Protheus pela internet (HTTPS), em qualquer rede: Wi-Fi 4K-
 2. Entre com usuário e senha do Protheus e marque **Mantenha-me conectado** (30 dias neste aparelho).
 3. Vire app: iPhone → Compartilhar → **Adicionar à Tela de Início**; Android → ⋮ → **Instalar app** / **Adicionar à tela inicial**.
 
+## Pastas (separação de rolos)
+1. Toque em **📁 Pastas**, dê um nome (ex.: `cartela`) e **Criar pasta**. A pasta fica **ativa** e o NOVA pergunta "Qual código deseja procurar?".
+2. Pesquise o código, abra a OP (**Exibir mais**) e toque em **💾 Salvar em cartela** (à esquerda de Indicar defeito). Salva a OP com todos os rolos; quando a OP está em mais de um endereço, eles ficam juntos, ex.: `08196 - 01023 - 04106`. Tocar de novo numa OP já salva permite atualizar os rolos ou tirar da pasta.
+3. Para buscar: **📁 Pastas → cartela**. Cada OP mostra os endereços e os rolos com uma caixinha: marque conforme for pegando (riscado em verde). **A pegar / Todos / Pegos** filtram a lista; a barra mostra o progresso.
+4. As pastas ficam **neste aparelho**. **Exportar planilha** baixa um CSV; no outro aparelho, **Pastas → Importar planilha** traz a pasta (com o que já foi pego).
+
 ## Como funciona nesta versão
 - Mesmas telas e regras do NOVA do computador: grupos por OP/Partida, prioridade (armazém 93 / AM01 / AM02, aprovado para amostra, CMC, entrada), punhos por OP, gramatura ideal da SBM (BM_GRAMTIN).
 - **Defeitos e regras de gramatura ficam guardados no próprio aparelho.** Para levar os defeitos do computador para o celular: no NOVA do computador, copie o arquivo `dados/MALHAS_RUINS.csv` para o celular (e-mail, WhatsApp, OneDrive…) e, no celular, abra um grupo → **Indicar defeito → Importar planilha**. **Baixar planilha** exporta os defeitos do celular.

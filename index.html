@@ -38,6 +38,7 @@
     <div class="top-actions"><button type="button" id="phoneBtn" class="secondary phone-btn hidden">📱 Usar no celular</button><div class="user-chip"><span class="user-dot" data-avatar>?</span><span data-user></span><button type="button" class="text-button logout-btn">Sair</button></div></div>
   </div>
   <form id="codeForm" class="center-card search-card" novalidate>
+    <div id="activeFolderBar" class="active-folder hidden"><span>📁 Pasta <b id="activeFolderName"></b></span><button type="button" id="activeFolderOpen" class="link-btn">Ver pasta</button><button type="button" id="activeFolderEnd" class="link-btn">Encerrar</button></div>
     <h1>Consultar material</h1>
     <p class="card-sub">Digite o código do produto com 12 caracteres.</p>
     <div class="code-wrap">
@@ -45,6 +46,7 @@
       <span id="codeCount" class="code-count">0/12</span>
     </div>
     <button id="codeBtn" class="primary big-btn" type="submit" disabled>Pesquisar <b>→</b></button>
+    <button type="button" id="foldersBtn" class="secondary big-btn folders-btn">📁 Pastas</button>
     <div class="history-link-wrap"><button type="button" id="openHistory" class="link-btn hidden">🕘 Ver histórico de pesquisas</button></div>
   </form>
 </div>
@@ -65,7 +67,7 @@
   </header>
   <main>
     <section id="stockSection" class="stock-section hidden">
-      <div class="stock-title"><div><span class="section-kicker">RESULTADO DO ESTOQUE</span><h2 id="selectedProduct"></h2></div><div class="stock-title-actions"><button id="punhoBtn" class="secondary punho-btn" type="button">🧵 Punhos</button><button id="prioritySettingsBtn" class="secondary" type="button">⚙ Prioridades</button><button id="closeResults" class="close-results" type="button" aria-label="Voltar para a pesquisa" title="Voltar para a pesquisa">×</button></div></div>
+      <div class="stock-title"><div><span class="section-kicker">RESULTADO DO ESTOQUE</span><h2 id="selectedProduct"></h2></div><div class="stock-title-actions"><button id="foldersBtn2" class="secondary folders-btn2" type="button">📁 <span id="foldersBtn2Label">Pastas</span></button><button id="punhoBtn" class="secondary punho-btn" type="button">🧵 Punhos</button><button id="prioritySettingsBtn" class="secondary" type="button">⚙ Prioridades</button><button id="closeResults" class="close-results" type="button" aria-label="Voltar para a pesquisa" title="Voltar para a pesquisa">×</button></div></div>
       <div id="punhoBanner" class="punho-banner hidden"><span class="punho-ico">★</span><span id="punhoBannerText"></span><button id="punhoBack" class="secondary" type="button">← Voltar para a malha</button></div>
       <div id="punhoBar" class="punho-bar hidden"><span class="punho-ico">🧵</span><span id="punhoBarText"></span><span class="spacer"></span><button id="punhoCancel" class="text-button" type="button">Cancelar</button><button id="punhoGo" class="primary" type="button" disabled>Buscar punho →</button></div>
       <div class="filter-strip">
@@ -152,7 +154,7 @@
     <div id="groupStats" class="group-stats"></div>
     <div id="groupDefect" class="group-defect hidden" role="alert"></div>
     <div id="groupTable" class="group-table"></div>
-    <div class="priority-actions"><button id="defectBtn" class="secondary defect-btn" type="button">⚠ Indicar defeito</button><button id="groupPrev" class="secondary" type="button">‹ Grupo anterior</button><button id="groupNext" class="secondary" type="button">Próximo grupo ›</button><span class="spacer"></span><button id="groupClose2" class="primary" type="button">Fechar</button></div>
+    <div class="priority-actions"><button id="saveGroupBtn" class="secondary save-btn" type="button">💾 Salvar</button><button id="defectBtn" class="secondary defect-btn" type="button">⚠ Indicar defeito</button><button id="groupPrev" class="secondary" type="button">‹ Grupo anterior</button><button id="groupNext" class="secondary" type="button">Próximo grupo ›</button><span class="spacer"></span><button id="groupClose2" class="primary" type="button">Fechar</button></div>
   </div>
 </section>
 <section id="defectModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="defectTitle">
@@ -179,6 +181,24 @@
     <div id="phoneOff" class="hidden">
       <p class="phone-text">O NOVA está aberto só para este computador. Para liberar os celulares:</p>
       <ol class="phone-steps"><li>Feche a janela preta do servidor do NOVA.</li><li>Abra <b>INICIAR_NOVA_REDE.bat</b> (em vez de INICIAR_NOVA.bat).</li><li>Se o Windows perguntar, clique em <b>Permitir</b> para <i>Redes privadas</i>.</li><li>Volte aqui em <b>📱 Usar no celular</b> para ver o código QR.</li></ol>
+    </div>
+  </div>
+</section>
+<section id="foldersModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="foldersTitle">
+  <div class="folders-modal">
+    <div id="foldersList">
+      <div class="modal-heading"><div><span class="section-kicker">SEPARAÇÃO</span><h2 id="foldersTitle">Pastas</h2><p id="foldersHint">Crie uma pasta, pesquise o código e salve as OPs que vai pegar. Depois abra a pasta no celular e marque os rolos conforme for pegando.</p></div><button id="closeFolders" class="close-results" type="button" aria-label="Fechar">×</button></div>
+      <form id="newFolderForm" class="new-folder" novalidate><input id="newFolderName" maxlength="40" placeholder="Nome da pasta (ex.: cartela)" autocomplete="off" aria-label="Nome da nova pasta"><button class="primary" type="submit">＋ Criar pasta</button></form>
+      <div id="folderPickMsg" class="folder-pick hidden"></div>
+      <div id="foldersItems" class="folders-items"></div>
+      <div class="priority-actions"><button id="foldersImport" class="text-button" type="button">↑ Importar planilha</button><input id="foldersFile" type="file" accept=".csv,text/csv" class="hidden"><span class="spacer"></span><button id="foldersClose2" class="secondary" type="button">Fechar</button></div>
+    </div>
+    <div id="folderView" class="hidden">
+      <div class="modal-heading"><div><button id="folderBack" class="link-btn back-link" type="button">← Pastas</button><h2 id="folderName"></h2><p id="folderSub"></p></div><button id="closeFolders2" class="close-results" type="button" aria-label="Fechar">×</button></div>
+      <div class="folder-progress"><div id="folderBar"></div></div>
+      <div class="folder-tools"><div class="seg" role="group" aria-label="Mostrar"><button type="button" data-show="todo" class="on">A pegar</button><button type="button" data-show="all">Todos</button><button type="button" data-show="done">Pegos</button></div><button id="folderSearch" class="secondary" type="button">🔍 Pesquisar código</button></div>
+      <div id="folderBody" class="folder-body"></div>
+      <div class="priority-actions"><button id="folderDelete" class="text-button danger" type="button">Excluir pasta</button><button id="folderExport" class="text-button" type="button">↓ Exportar planilha</button><span class="spacer"></span><button id="folderUse" class="secondary" type="button">Usar para salvar</button></div>
     </div>
   </div>
 </section>
