@@ -230,6 +230,7 @@ function goSearch() {
 const BIO_KEY = 'nova_bio_v1', BIO_SKIP = 'nova_bio_skip_v1';
 const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const BIO_LABEL = IS_IOS ? 'Face ID' : 'biometria';
+const BIO_T = IS_IOS ? 'Face ID' : 'Biometria', BIO_O = IS_IOS ? 'o' : 'a', BIO_A = IS_IOS ? 'ado' : 'ada'; // concordância (o Face ID / a biometria)
 const PRF_SALT = new TextEncoder().encode('NOVA-Consulta-de-Estoque-PRF-v1!'); // 32 bytes fixos
 let bioAvailable = false, lastCreds = null, pendingBioId = null;
 const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -245,7 +246,6 @@ function updateBioUi() {
   // sem botão: o Face ID abre ao tocar no campo de senha
   $('faceLogin').classList.add('hidden');
   $('faceRemove').classList.toggle('hidden', !on);
-  $('password').placeholder = on ? `Toque para entrar com ${BIO_LABEL}` : '';
   if (on) { $('faceRemove').textContent = `Remover ${BIO_LABEL} deste aparelho`; if (d.user && !$('username').value) $('username').value = d.user; }
   const offer = bioAvailable && !d && !!lastCreds && !lsGet(BIO_SKIP, false);
   $('faceOffer').classList.toggle('hidden', !offer);
@@ -285,11 +285,11 @@ async function bioEnable() {
     $('faceOfferText').textContent = `Quase lá: toque em Confirmar e olhe para o celular mais uma vez.`; $('faceEnable').textContent = 'Confirmar';
   } catch (e) {
     if (e.name === 'NoPrf') { pendingBioId = null; bioNoSupport(); lsSet(BIO_SKIP, true); updateBioUi(); }
-    else if (e.name === 'NotAllowedError' || e.name === 'AbortError') message(`${BIO_LABEL} cancelado.`, 'info');
-    else message(`Não foi possível ativar o ${BIO_LABEL}: ${e.message}`, 'error');
+    else if (e.name === 'NotAllowedError' || e.name === 'AbortError') message(`${BIO_T} cancel${BIO_A}.`, 'info');
+    else message(`Não foi possível ativar ${BIO_O} ${BIO_LABEL}: ${e.message}`, 'error');
   } finally { btn.disabled = false; }
 }
-function bioDone() { lastCreds = null; updateBioUi(); message(`${BIO_LABEL} ativado neste aparelho. Na próxima vez, é só tocar no campo de senha.`, 'success'); }
+function bioDone() { lastCreds = null; updateBioUi(); message(`${BIO_T} ativ${BIO_A} neste aparelho. Na próxima vez, é só tocar no campo de senha.`, 'success'); }
 let bioSkipField = false; // depois de cancelar, o próximo toque na senha deixa digitar
 async function bioLogin() {
   const d = bioData(); if (!d) return;
@@ -303,8 +303,8 @@ async function bioLogin() {
     $('username').value = creds.u;
     await login(null, creds);
   } catch (e) {
-    bioSkipField = true; $('password').placeholder = '';
-    if (e.name === 'NotAllowedError' || e.name === 'AbortError') loginError(`${BIO_LABEL} cancelado. Digite a senha para entrar.`);
+    bioSkipField = true;
+    if (e.name === 'NotAllowedError' || e.name === 'AbortError') loginError(`${BIO_T} cancel${BIO_A}. Digite a senha para entrar.`);
     else loginError(`Não foi possível entrar com ${BIO_LABEL}. Entre com usuário e senha.`);
   } finally { btn.disabled = false; }
 }
@@ -314,7 +314,7 @@ function bioFromPassword(e) {
   e.preventDefault(); $('password').blur(); bioLogin();
 }
 function bioRemove() {
-  if (!confirm(`Remover o ${BIO_LABEL} deste aparelho? Você volta a entrar com usuário e senha.`)) return;
+  if (!confirm(`Remover ${BIO_O} ${BIO_LABEL} deste aparelho? Você volta a entrar com usuário e senha.`)) return;
   lsDel(BIO_KEY); lsDel(BIO_SKIP); updateBioUi();
   message(IS_IOS ? 'Face ID removido do NOVA. Se quiser, apague também a chave "NOVA" em Ajustes › Senhas.' : 'Biometria removida do NOVA neste aparelho.', 'info');
 }
@@ -336,7 +336,7 @@ async function login(e, bioCreds) {
     if (d.remembered && d.savedOnDisk === false) message('Conectado por 30 dias. Se o computador do NOVA for reiniciado ou a janela do servidor for fechada, será preciso entrar de novo.', 'info');
   } catch (err) {
     loginError(err.message || 'Não foi possível validar o acesso.');
-    if (err.status === 401 && bioCreds) { lsDel(BIO_KEY); updateBioUi(); loginError(`A senha do Protheus mudou. Entre com usuário e senha; depois ative o ${BIO_LABEL} de novo.`); }
+    if (err.status === 401 && bioCreds) { lsDel(BIO_KEY); updateBioUi(); loginError(`A senha do Protheus mudou. Entre com usuário e senha; depois ative ${BIO_O} ${BIO_LABEL} de novo.`); }
     if (err.status === 401) { $('password').value = ''; $('password').focus(); }
   } finally { $('connectBtn').disabled = false; $('connectBtn').textContent = 'Entrar'; }
 }
