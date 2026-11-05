@@ -102,7 +102,7 @@ body:has(#stockSection:not(.hidden)) .theme-toggle,body:has(.modal-backdrop:not(
 /* =====================================================================
    Telas centralizadas (login e pesquisa)
    ===================================================================== */
-.screen{min-height:100vh}
+.screen{min-height:100vh;min-height:100dvh}
 .center-screen{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:36px 16px;background:var(--screen-bg)}
 .center-card{width:min(410px,100%);background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--card-shadow);padding:32px 32px 28px;color:var(--ink);position:relative;overflow:hidden}
 .center-card::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--btn-a),var(--btn-b) 60%,var(--nova))}
@@ -536,7 +536,7 @@ th.num-cell,td.num-cell{text-align:right}
   html,body{font-size:14px}
   input,select,textarea{font-size:16px!important} /* evita zoom automático no iPhone */
   .screen-top{position:static;width:100%;padding:0 0 6px}
-  .center-screen{justify-content:flex-start;padding:max(16px,env(safe-area-inset-top)) 14px 24px}
+  .center-screen{justify-content:center;padding:max(16px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom))}
   .center-card,.search-card{padding:24px 20px;border-radius:14px}
   .code-input{font-size:22px!important;letter-spacing:.12em;height:58px}
   .code-input::placeholder{font-size:17px}
