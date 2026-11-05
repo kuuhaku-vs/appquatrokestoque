@@ -223,25 +223,116 @@ function goSearch() {
   $('codeInput').value = ''; updateCodeInput(); renderRecent();
   $('codeInput').focus();
 }
-async function login(e) {
+/* ------------------------- Face ID / biometria ------------------------- */
+// Chave de acesso (passkey/WebAuthn) do próprio aparelho. Usuário e senha ficam guardados neste aparelho
+// CRIPTOGRAFADOS (AES-GCM) com uma chave que o sistema só entrega depois do Face ID (extensão PRF).
+// Sem PRF (iOS antigo), a opção não é oferecida: nada de senha guardada sem proteção.
+const BIO_KEY = 'nova_bio_v1', BIO_SKIP = 'nova_bio_skip_v1';
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const BIO_LABEL = IS_IOS ? 'Face ID' : 'biometria';
+const PRF_SALT = new TextEncoder().encode('NOVA-Consulta-de-Estoque-PRF-v1!'); // 32 bytes fixos
+let bioAvailable = false, lastCreds = null, pendingBioId = null;
+const b64u = buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = str => Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4)), c => c.charCodeAt(0));
+const bioData = () => lsGet(BIO_KEY, null);
+async function bioCheck() {
+  try { bioAvailable = !!(window.PublicKeyCredential && window.isSecureContext && window.crypto && crypto.subtle && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); }
+  catch { bioAvailable = false; }
+  updateBioUi();
+}
+function updateBioUi() {
+  const d = bioData(), on = bioAvailable && !!d;
+  $('faceLogin').classList.toggle('hidden', !on);
+  $('faceRemove').classList.toggle('hidden', !on);
+  if (on) { $('faceBtnLabel').textContent = `Entrar com ${BIO_LABEL}${d.user ? ' · ' + d.user : ''}`; $('faceRemove').textContent = `Remover ${BIO_LABEL} deste aparelho`; }
+  const offer = bioAvailable && !d && !!lastCreds && !lsGet(BIO_SKIP, false);
+  $('faceOffer').classList.toggle('hidden', !offer);
+  if (offer && !pendingBioId) { $('faceOfferText').textContent = `Entrar com ${BIO_LABEL} nas próximas vezes?`; $('faceEnable').textContent = 'Ativar'; }
+}
+async function bioSeal(credId, prf, creds) {
+  const key = await crypto.subtle.importKey('raw', prf, 'AES-GCM', false, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(creds)));
+  if (!lsSet(BIO_KEY, { id: credId, iv: b64u(iv), ct: b64u(ct), user: creds.u, at: Date.now() })) throw new Error('Não foi possível guardar neste aparelho.');
+}
+async function bioAssert(id) {
+  const a = await navigator.credentials.get({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ type: 'public-key', id: unb64u(id) }], userVerification: 'required', timeout: 60000, extensions: { prf: { eval: { first: PRF_SALT } } } } });
+  const r = a.getClientExtensionResults().prf;
+  if (!r || !r.results || !r.results.first) throw Object.assign(new Error('prf'), { name: 'NoPrf' });
+  return r.results.first;
+}
+const bioNoSupport = () => message(`Este aparelho não permite guardar o acesso com ${BIO_LABEL} com segurança (no iPhone é preciso iOS 18 ou mais novo, no Safari). Continue entrando com usuário e senha.`, 'info');
+async function bioEnable() {
+  if (!lastCreds) return;
+  const btn = $('faceEnable'); btn.disabled = true;
+  try {
+    if (pendingBioId) { // segunda etapa (alguns aparelhos só entregam a chave numa confirmação)
+      const prf = await bioAssert(pendingBioId); await bioSeal(pendingBioId, prf, lastCreds); pendingBioId = null; return bioDone();
+    }
+    const cred = await navigator.credentials.create({ publicKey: {
+      rp: { name: 'NOVA - Consulta de Estoque' },
+      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: lastCreds.u, displayName: 'NOVA · ' + lastCreds.u },
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+      timeout: 60000, attestation: 'none', extensions: { prf: { eval: { first: PRF_SALT } } } } });
+    const ext = cred.getClientExtensionResults().prf || {}, id = b64u(cred.rawId);
+    if (ext.results && ext.results.first) { await bioSeal(id, ext.results.first, lastCreds); return bioDone(); }
+    if (ext.enabled === false) return bioNoSupport();
+    pendingBioId = id;
+    $('faceOfferText').textContent = `Quase lá: toque em Confirmar e olhe para o celular mais uma vez.`; $('faceEnable').textContent = 'Confirmar';
+  } catch (e) {
+    if (e.name === 'NoPrf') { pendingBioId = null; bioNoSupport(); lsSet(BIO_SKIP, true); updateBioUi(); }
+    else if (e.name === 'NotAllowedError' || e.name === 'AbortError') message(`${BIO_LABEL} cancelado.`, 'info');
+    else message(`Não foi possível ativar o ${BIO_LABEL}: ${e.message}`, 'error');
+  } finally { btn.disabled = false; }
+}
+function bioDone() { lastCreds = null; updateBioUi(); message(`${BIO_LABEL} ativado neste aparelho. Na próxima vez, toque em "Entrar com ${BIO_LABEL}".`, 'success'); }
+async function bioLogin() {
+  const d = bioData(); if (!d) return;
+  const btn = $('faceBtn'); if (btn.disabled) return;
+  btn.disabled = true; loginError('');
+  try {
+    const prf = await bioAssert(d.id);
+    const key = await crypto.subtle.importKey('raw', prf, 'AES-GCM', false, ['decrypt']);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64u(d.iv) }, key, unb64u(d.ct));
+    const creds = JSON.parse(new TextDecoder().decode(pt));
+    $('username').value = creds.u;
+    await login(null, creds);
+  } catch (e) {
+    if (e.name === 'NotAllowedError' || e.name === 'AbortError') loginError(`${BIO_LABEL} cancelado. Toque de novo ou entre com usuário e senha.`);
+    else loginError(`Não foi possível entrar com ${BIO_LABEL}. Entre com usuário e senha.`);
+  } finally { btn.disabled = false; }
+}
+function bioRemove() {
+  if (!confirm(`Remover o ${BIO_LABEL} deste aparelho? Você volta a entrar com usuário e senha.`)) return;
+  lsDel(BIO_KEY); lsDel(BIO_SKIP); updateBioUi();
+  message(IS_IOS ? 'Face ID removido do NOVA. Se quiser, apague também a chave "NOVA" em Ajustes › Senhas.' : 'Biometria removida do NOVA neste aparelho.', 'info');
+}
+
+async function login(e, bioCreds) {
   if (e) e.preventDefault();
   if ($('connectBtn').disabled) return;
-  const username = $('username').value.trim(), password = $('password').value;
+  const username = bioCreds ? bioCreds.u : $('username').value.trim(), password = bioCreds ? bioCreds.p : $('password').value;
   if (!username || !password) { loginError('Informe usuário e senha do Protheus.'); (username ? $('password') : $('username')).focus(); return; }
   $('connectBtn').disabled = true; $('connectBtn').innerHTML = '<span class="spinner"></span> Validando acesso…'; loginError('');
   try {
     const d = await api('/api/login', { method: 'POST', body: JSON.stringify({ username, password, remember: $('remember').checked, apiUrl: $('apiUrl') ? $('apiUrl').value.trim() : '' }) }, 45000);
     $('password').value = '';
     setConnection(true, d.username);
+    if (!bioCreds) lastCreds = { u: username, p: password }; // fica só na memória, para ativar o Face ID
+    updateBioUi();
     await novaTransition($('loginForm'), $('codeForm'), goSearch);
     $('codeInput').focus();
     if (d.remembered && d.savedOnDisk === false) message('Conectado por 30 dias. Se o computador do NOVA for reiniciado ou a janela do servidor for fechada, será preciso entrar de novo.', 'info');
   } catch (err) {
     loginError(err.message || 'Não foi possível validar o acesso.');
+    if (err.status === 401 && bioCreds) { lsDel(BIO_KEY); updateBioUi(); loginError(`A senha do Protheus mudou. Entre com usuário e senha; depois ative o ${BIO_LABEL} de novo.`); }
     if (err.status === 401) { $('password').value = ''; $('password').focus(); }
   } finally { $('connectBtn').disabled = false; $('connectBtn').textContent = 'Entrar'; }
 }
 async function logout() {
+  lastCreds = null; pendingBioId = null;
   try { await api('/api/logout', { method: 'POST', body: '{}' }); } catch { /* sessão local já descartada */ }
   currentRows = []; visibleRows = [];
   if (document.body.dataset.view === 'search') await novaTransition($('codeForm'), $('loginForm'), () => goLogin(''));
@@ -1466,6 +1557,8 @@ $('clearHistory').onclick = () => { if (!getHistory().length || !confirm('Apagar
 $('historyModal').addEventListener('mousedown', e => { if (e.target === $('historyModal')) closeHistory(); });
 $('addressFilter').onchange = applyFilters;
 $('punhoBtn').onclick = togglePunhoMode;
+$('faceBtn').onclick = bioLogin; $('faceEnable').onclick = bioEnable; $('faceRemove').onclick = bioRemove;
+$('faceLater').onclick = () => { lsSet(BIO_SKIP, true); lastCreds = null; pendingBioId = null; updateBioUi(); };
 $('foldersBtn').onclick = openFolders; $('foldersBtn2').onclick = () => { const f = activeFolder(); f ? openFolder(f.id) : openFolders(); };
 $('activeFolderOpen').onclick = () => { const f = activeFolder(); if (f) openFolder(f.id); };
 $('activeFolderEnd').onclick = () => { const d = readFolders(); d.active = null; writeFolders(d); updateFolderUi(); message('Pasta encerrada. As OPs salvas continuam em 📁 Pastas.', 'info'); };
@@ -1545,6 +1638,7 @@ $('togglePassword').onclick = () => { const p = $('password'), show = p.type ===
 
 updateFilterHint();
 updateFolderUi();
+bioCheck();
 syncFolders(true).then(ok => { if (ok) updateFolderUi(); });
 setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
 (async () => {

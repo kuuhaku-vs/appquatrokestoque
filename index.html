@@ -22,12 +22,17 @@
     <div class="card-brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
     <h1>Entrar</h1>
     <p class="card-sub">Use seu usuário e senha do Protheus.</p>
+    <div id="faceLogin" class="face-login hidden">
+      <button id="faceBtn" class="primary big-btn face-btn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9.5v1M15 9.5v1M12 9.5v3.5h-1M9.5 16c1.5 1 3.5 1 5 0"/></svg><span id="faceBtnLabel">Entrar com Face ID</span></button>
+      <div class="face-or"><span>ou entre com usuário e senha</span></div>
+    </div>
     <div id="apiUrlWrap" class="field hidden"><label for="apiUrl">Endereço da API do Protheus</label><input id="apiUrl" type="url" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://servidor:porta/rest"></div>
     <div class="field"><label for="username">Usuário</label><input id="username" name="username" autocomplete="username" spellcheck="false" autocapitalize="off" required></div>
     <div class="field"><label for="password">Senha</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><button type="button" id="togglePassword" class="eye-btn" aria-label="Mostrar senha" title="Mostrar senha">◉</button></div></div>
     <label class="remember"><input type="checkbox" id="remember"> <span>Mantenha-me conectado</span></label>
     <button id="connectBtn" class="primary big-btn" type="submit">Entrar</button>
     <div id="loginError" class="form-error hidden" role="alert"></div>
+    <button id="faceRemove" class="link-btn face-remove hidden" type="button">Remover Face ID deste aparelho</button>
   </form>
   <p class="screen-foot" id="apiHost">NOVA - Consulta de Estoque</p>
 </div>
@@ -41,6 +46,7 @@
   <form id="codeForm" class="center-card search-card" novalidate>
     <span class="nova-fx nova-corner tl" aria-hidden="true"></span><span class="nova-fx nova-corner br" aria-hidden="true"></span><span class="nova-fx nova-ring" aria-hidden="true"></span><span class="nova-fx nova-core" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span>
     <div id="activeFolderBar" class="active-folder hidden"><span>📁 Pasta <b id="activeFolderName"></b></span><button type="button" id="activeFolderOpen" class="link-btn">Ver pasta</button><button type="button" id="activeFolderEnd" class="link-btn">Encerrar</button></div>
+    <div id="faceOffer" class="face-offer hidden"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9.5v1M15 9.5v1M12 9.5v3.5h-1M9.5 16c1.5 1 3.5 1 5 0"/></svg><span id="faceOfferText">Entrar com Face ID nas próximas vezes?</span><button id="faceEnable" class="primary" type="button">Ativar</button><button id="faceLater" class="link-btn" type="button">Agora não</button></div>
     <h1>Consultar Material</h1>
     <p class="card-sub">Digite o código do produto com 12 caracteres.</p>
     <div class="code-wrap">
