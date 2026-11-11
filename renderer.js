@@ -1,5 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
+const NOVA_VERSION = '11/11 19:35';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -1065,12 +1066,13 @@ let printOptsFor = null;   // pasta com o painel de impressão aberto (continua 
 const printPrefs = () => Object.assign({ orient: 'portrait', cols: 'auto' }, lsGet(PRINT_KEY, {}) || {});
 function printPlan(n, prefs) {
   const avail = prefs.orient === 'landscape' ? 145 : 232;   // mm livres para as linhas (A4, tirando margens, cabeçalho e rodapé)
-  const ROW = 9, MIN = 4.4;                                   // altura normal e mínima da linha (mm)
+  const ROW = 11.5, MIN = 5.6;                                // altura da linha (mm): RG em cima, descrição e código embaixo
   const cols = prefs.cols === '1' ? 1 : prefs.cols === '2' ? 2 : (n * ROW > avail ? 2 : 1);
   const perCol = Math.max(1, Math.ceil(n / cols));
   const rh = Math.max(MIN, Math.min(ROW, avail / perCol));
   const pages = Math.max(1, Math.ceil(perCol / Math.floor(avail / rh)));
-  return { cols, perCol, rh, pages, fs: rh >= 8 ? 11.5 : rh >= 6.6 ? 10.5 : rh >= 5.6 ? 9.5 : 9, showCode: cols === 1 && rh >= 7 };
+  // com pouco espaço, a linha fica com 2 andares (RG e descrição) e o código sai
+  return { cols, perCol, rh, pages, fs: rh >= 10.5 ? 11.5 : rh >= 8.5 ? 10.5 : rh >= 7.2 ? 9.5 : 9, showCode: rh >= 9.5 };
 }
 function togglePrintOpts(f, body) {
   const open = body.querySelector('.print-opts');
@@ -1107,8 +1109,9 @@ function printBaixas(f, prefs = printPrefs()) {
   const plan = printPlan(list.length, prefs);
   const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const row = ({ it, r }) => `<tr><td class="ck">${r.baixado ? '☑' : '☐'}</td><td class="rg">${esc(r.rg)}</td><td class="ds">${esc(it.descricao || 'Produto')}${plan.showCode ? `<small>${esc(it.produto)}</small>` : ''}</td><td class="n">${esc(fmtNum(Number(r.pesoBaixa), 2))}</td><td class="n">${esc(hasVal(r.mc) ? r.mc : '—')}</td></tr>`;
-  const table = rows => `<table><thead><tr><th class="ck">Baixa</th><th>RG</th><th>Produto (descrição)</th><th class="n">Peso (kg)</th><th class="n">MC</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>`;
+  // como nas pastas: RG em cima; descrição e código do produto embaixo, na mesma coluna
+  const row = ({ it, r }) => `<tr><td class="ck">${r.baixado ? '☑' : '☐'}</td><td class="main"><b class="rg">${esc(r.rg)}</b><span class="sub">${esc(it.descricao || 'Produto')}</span>${plan.showCode ? `<span class="sub">${esc(it.produto)}</span>` : ''}</td><td class="n">${esc(fmtNum(Number(r.pesoBaixa), 2))}</td><td class="n">${esc(hasVal(r.mc) ? r.mc : '—')}</td></tr>`;
+  const table = rows => `<table><thead><tr><th class="ck">Baixa</th><th>RG · Produto</th><th class="n">Peso (kg)</th><th class="n">MC</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>`;
   // colunas em ordem de leitura: a 1ª coluna termina e a 2ª continua de onde parou
   const parts = []; for (let k = 0; k < plan.cols; k++) parts.push(list.slice(k * plan.perCol, (k + 1) * plan.perCol));
   let box = $('printBaixas');
@@ -1162,9 +1165,14 @@ function opRow(f, it) {
   side.textContent = picked.length ? picked.map(r => r.rg).join(', ') + (baixaKg ? ` · ${fmtNum(baixaKg, 2)} kg` : '') : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
   const chev = document.createElement('span'); chev.className = 'fo-chev'; chev.textContent = '›';
   row.append(box, main, side, chev);
-  row.onclick = () => { open ? folderOpenOps.delete(it.key) : folderOpenOps.add(it.key); renderFolder(); };
+  const pegaMode = folderShow === 'done' && picked.length;
+  if (pegaMode) {
+    const alvo = picked.find(r => !hasVal(r.pesoBaixa)) || picked[0];
+    row.title = 'Informar o peso para baixa'; row.removeAttribute('aria-expanded'); chev.textContent = '⚖'; chev.classList.add('fo-weigh');
+    row.onclick = () => openBaixa(f.id, it, alvo);
+  } else row.onclick = () => { open ? folderOpenOps.delete(it.key) : folderOpenOps.add(it.key); renderFolder(); };
   wrap.append(row);
-  if (open) {
+  if (open && !pegaMode) {
     const panel = document.createElement('div'); panel.className = 'fo-panel';
     const hint = document.createElement('p'); hint.className = 'fo-hint'; hint.textContent = 'Toque no RG que você pegou e informe o Peso Total e o MC da baixa:';
     const grid = document.createElement('div'); grid.className = 'rg-grid';
@@ -1206,8 +1214,9 @@ function openBaixa(folderId, it, r) {
   $('baixaProdDesc').textContent = it.descricao || 'Produto';
   $('baixaProdInfo').textContent = [it.produto, r.peso !== null && r.peso !== undefined ? `rolo com ${fmtNum(r.peso, 2)} kg no estoque` : ''].filter(Boolean).join(' · ');
   const others = it.rolos.filter(x => x !== r && !(x.rg === r.rg && x.endereco === r.endereco));
-  // RG ainda não confirmado e a OP tem outros RGs: primeiro confirma (os outros saem da pasta)
-  if (!r.picked && others.length) return baixaStep(1, others.length);
+  // RG ainda não confirmado: só confirma a coleta (os outros RGs da OP saem da pasta).
+  // O peso para baixa é informado depois, tocando na OP na aba Pegas.
+  if (!r.picked) return baixaStep(1, others.length);
   baixaStep(2);
 }
 function baixaStep(n, othersCount = 0) {
@@ -1217,13 +1226,15 @@ function baixaStep(n, othersCount = 0) {
   $('baixaStep2').classList.toggle('hidden', n !== 2);
   if (n === 1) {
     $('baixaKicker').textContent = 'CONFIRMAR RG COLETADO';
-    $('baixaConfirmText').textContent = `Você coletou o RG ${r.rg}? Ao confirmar, os outros ${othersCount} RG(s) desta OP serão apagados da pasta e fica só este.`;
+    $('baixaConfirmText').textContent = othersCount
+      ? `Você coletou o RG ${r.rg}? Ao confirmar, os outros ${othersCount} RG(s) desta OP serão apagados da pasta e fica só este. Depois, toque na OP na aba Pegas para informar o peso.`
+      : `Você coletou o RG ${r.rg}? Depois, toque na OP na aba Pegas para informar o peso.`;
   } else {
     $('baixaKicker').textContent = 'PESO PARA BAIXA';
     const has = r.picked && hasVal(r.pesoBaixa);
     $('baixaPeso').value = has ? fmtNum(Number(r.pesoBaixa), 2) : '';   // vem vazio: digita só o que vai baixar
-    $('baixaMc').value = r.picked ? (r.mc || '') : '';
-    $('baixaHint').textContent = 'Confira o produto e digite só os números do peso: 80 = 0,80 kg · 180 = 1,80 kg · 1875 = 18,75 kg. Com o peso, o RG vai para a aba Baixas.' + (r.picked && r.pickedBy ? ` Pego por ${r.pickedBy}.` : '');
+    $('baixaMc').value = r.picked && hasVal(r.mc) && parseNumber(r.mc) !== null ? fmtNum(r.mc, 2, 2) : '';   // MC no mesmo formato do peso
+    $('baixaHint').textContent = 'Confira o produto e digite só números no peso e no MC: 8 = 0,08 · 80 = 0,80 · 180 = 1,80 · 1875 = 18,75. Para zerar o MC, digite 0. Com o peso, o RG vai para a aba Baixas.' + (r.picked && r.pickedBy ? ` Pego por ${r.pickedBy}.` : '');
     $('baixaUnpick').classList.toggle('hidden', !r.picked);
     $('baixaSave').textContent = has ? '✓ Atualizar baixa' : '✓ Salvar baixa';
   }
@@ -1249,11 +1260,10 @@ async function confirmPickedRg() {
     } else {
       const d = readFolders(); const rr = keepOnly(d); writeFolders(d); if (rr) baixaCtx.r = rr;
     }
+    folderOpenOps.delete(key);
+    closeBaixa();
     rerenderFolders(); updateSaveBtn();
-    const f = folderById(readFolders(), folderId), x = f && f.items.find(y => y.key === key);
-    const rr = x && x.rolos.find(y => y.rg === r.rg && y.endereco === r.endereco);
-    if (rr) baixaCtx.r = rr;
-    baixaStep(2);
+    message(`RG ${r.rg} confirmado. Para informar o peso, toque na OP ${it.op} na aba Pegas.`, 'success');
   } finally { btn.disabled = false; }
 }
 // Peso para baixa: digita só números e eles entram como centésimos — 80 vira 0,80; 180 vira 1,80; 1875 vira 18,75
@@ -1274,22 +1284,47 @@ function baixaError(t) { $('baixaError').textContent = t || ''; $('baixaError').
 async function saveBaixa(e) {
   if (e) e.preventDefault();
   if (!baixaCtx) return;
-  // o peso é sempre lido pelos números digitados, em centésimos (8 = 0,08 · 80 = 0,80 · 180 = 1,80), qualquer que seja o teclado
+  // peso e MC são sempre lidos pelos números digitados, em centésimos (8 = 0,08 · 80 = 0,80 · 180 = 1,80), qualquer que seja o teclado
   $('baixaPeso').value = maskPeso($('baixaPeso').value);
+  $('baixaMc').value = maskPeso($('baixaMc').value);
   const pesoRaw = $('baixaPeso').value.trim(), peso = pesoRaw ? parseNumber(pesoRaw) : null, mcRaw = $('baixaMc').value.trim();
   if (pesoRaw && (peso === null || peso <= 0)) { baixaError('O Peso Total precisa ser um número maior que zero (ex.: 18,75).'); return $('baixaPeso').focus(); }
   if (peso !== null && peso > 9999) { baixaError('Peso Total muito alto. Confira o valor.'); return $('baixaPeso').focus(); }
   const mcNum = mcRaw ? parseNumber(mcRaw) : null;
-  if (mcRaw && mcNum === null) { baixaError('O MC precisa ser um número (ex.: 1,25).'); return $('baixaMc').focus(); }
+  if (mcRaw && (mcNum === null || mcNum < 0)) { baixaError('O MC precisa ser um número (ex.: digite 125 para 1,25, ou 0 para zerar).'); return $('baixaMc').focus(); }   // MC pode ser 0 (zerado)
   const { folderId, key, r } = baixaCtx; closeBaixa();
   if (peso !== null) folderOpenOps.delete(key);   // com peso: sai da aba Pegas e aparece em Baixas
-  await togglePicked(folderId, key, r, true, { pesoBaixa: peso === null ? null : Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 0, 3) : '' });
+  await togglePicked(folderId, key, r, true, { pesoBaixa: peso === null ? null : Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 2, 2) : '' });
   if (peso !== null) message(`RG ${r.rg}: baixa de ${fmtNum(peso, 2)} kg salva. Está na aba Baixas.`, 'success');
 }
 async function unpickBaixa() {
   if (!baixaCtx) return;
-  const { folderId, key, r } = baixaCtx; closeBaixa();
+  const { folderId, key, r, it } = baixaCtx;
+  const ok = await askOk({ tone: 'warn', kicker: 'DESFAZER COLETA', title: `Você não pegou o RG ${r.rg}?`,
+    card: { label: 'PRODUTO', title: it.descricao || it.produto, lines: [['Código', it.produto], ['OP', `${it.op || '—'} · ${it.partida || '—'}`]] },
+    note: 'O RG volta para "A pegar" e o NOVA busca no estoque os outros RGs desta OP para você escolher de novo.', okText: '↩ Desfazer coleta', cancelText: 'Voltar' });
+  if (!ok) return;
+  closeBaixa();
   await togglePicked(folderId, key, r, false);
+  await restoreOpRolls(folderId, key, it);
+}
+// traz de volta para a pasta todos os RGs da OP que estão no estoque (nenhum marcado como pego)
+async function restoreOpRolls(folderId, key, it) {
+  let g = null;
+  try {
+    const d = await api(`/api/stock?code=${encodeURIComponent(it.produto)}`, {}, SEARCH_TIMEOUT_MS);
+    g = groupRows(Array.isArray(d.rows) ? d.rows : []).find(x => String(x.op).trim() === String(it.op).trim() && String(x.partida).trim() === String(it.partida).trim());
+  } catch (e) {
+    return message(`Coleta desfeita. Não consegui buscar os outros RGs no estoque agora (${e.message}). Pesquise o código ${it.produto} e salve a OP de novo.`, 'error');
+  }
+  if (!g) return message(`Coleta desfeita. Os outros RGs da OP ${it.op} não estão mais no estoque.`, 'info');
+  const snap = snapshotGroup(g);
+  const item = { ...it, key, rolos: snap.rolos.map(x => ({ ...x, picked: false })), enderecos: snap.enderecos, savedAt: Date.now() };
+  const ok = await folderOp(
+    () => remote('saveItem', { folderId, item }),
+    () => { const dd = readFolders(), f = folderById(dd, folderId); if (!f) return false; const i = f.items.findIndex(x => x.key === key);
+      if (i >= 0) f.items[i] = item; else f.items.push(item); f.updatedAt = Date.now(); return writeFolders(dd); });
+  if (ok) message(`Coleta desfeita. A OP ${it.op} voltou com ${item.rolos.length} RG(s) para escolher em "A pegar".`, 'success');
 }
 // marca/desmarca o RG: muda na hora na tela e grava (planilha ou aparelho); se falhar, volta
 async function togglePicked(folderId, key, r, picked, baixa = {}) {
@@ -1967,9 +2002,10 @@ $('newFolderForm').onsubmit = e => { e.preventDefault(); createFolder($('newFold
 $('closeFolders').onclick = $('closeFolders2').onclick = $('foldersClose2').onclick = closeFolders;
 $('folderBack').onclick = openFolders;
 $('folderSearch').onclick = () => { closeFolders(); goSearch(); };
+document.querySelectorAll('#searchView .center-card, #foldersList').forEach(el => { const v = document.createElement('p'); v.className = 'app-version'; v.textContent = `NOVA · versão ${NOVA_VERSION}`; el.append(v); });
 $('folderClear').onclick = openClearBox;
 $('baixaForm').onsubmit = saveBaixa;
-['input', 'keyup', 'change', 'blur', 'compositionend'].forEach(ev => $('baixaPeso').addEventListener(ev, onPesoInput));
+['input', 'keyup', 'change', 'blur', 'compositionend'].forEach(ev => { $('baixaPeso').addEventListener(ev, onPesoInput); $('baixaMc').addEventListener(ev, onPesoInput); });
 $('closeBaixa').onclick = $('baixaCancel').onclick = $('baixaCancel1').onclick = closeBaixa;
 $('baixaConfirm').onclick = confirmPickedRg;
 $('baixaUnpick').onclick = unpickBaixa;

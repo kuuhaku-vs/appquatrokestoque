@@ -200,11 +200,11 @@
     <div id="baixaStep2">
       <div class="baixa-fields">
         <div class="field"><label for="baixaPeso">Peso para baixa (kg)</label><input id="baixaPeso" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
-        <div class="field"><label for="baixaMc">MC</label><input id="baixaMc" inputmode="decimal" autocomplete="off" placeholder="—" maxlength="12"></div>
+        <div class="field"><label for="baixaMc">MC</label><input id="baixaMc" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
       </div>
       <p id="baixaHint" class="baixa-hint"></p>
       <div id="baixaError" class="form-error hidden" role="alert"></div>
-      <div class="priority-actions"><button id="baixaUnpick" class="text-button danger hidden" type="button">Desmarcar (não peguei)</button><span class="spacer"></span><button id="baixaCancel" class="text-button" type="button">Cancelar</button><button id="baixaSave" class="primary" type="submit">✓ Salvar baixa</button></div>
+      <div class="priority-actions"><button id="baixaUnpick" class="secondary baixa-undo hidden" type="button">↩ Não peguei</button><span class="spacer"></span><button id="baixaCancel" class="text-button" type="button">Cancelar</button><button id="baixaSave" class="primary" type="submit">✓ Salvar baixa</button></div>
     </div>
   </form>
 </section>
