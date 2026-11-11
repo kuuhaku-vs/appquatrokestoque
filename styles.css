@@ -869,6 +869,7 @@ th.num-cell,td.num-cell{text-align:right}
 .bx-copyrg:hover{color:var(--accent);border-color:var(--accent-line)}
 .bx-copyrg.ok{color:#fff;background:var(--ok);border-color:var(--ok)}
 .bx-row.done{background:var(--ok-row)}
+.bx-row.leaving{opacity:.45;pointer-events:none;background:var(--ok-row)}
 .bx-row.done .bx-rg,.bx-row.done strong{color:var(--ok);text-decoration:line-through}
 @media(max-width:720px){
   .folder-tools .seg button{padding:11px 4px;font-size:12px}

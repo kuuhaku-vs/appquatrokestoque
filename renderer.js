@@ -681,6 +681,19 @@ async function saveGroupTo(folderId) {
   const f = folderById(readFolders(), folderId);
   if (ok && f) message(`${existed ? 'Atualizado' : 'Salvo'} em "${f.name}"${isShared() ? ' (compartilhada)' : ''}: OP ${snap.op} · ${snap.rolos.length} rolo(s) · ${snap.enderecos || 'sem endereço'}.`, 'success');
 }
+// tira um RG da pasta; se a OP ficar sem RG, a OP inteira sai
+async function removeRollFrom(folderId, key, r) {
+  const same = x => x.rg === r.rg && x.endereco === r.endereco;
+  const cur = folderById(readFolders(), folderId), it = cur && cur.items.find(x => x.key === key);
+  if (!it) return true;
+  const rest = it.rolos.filter(x => !same(x));
+  return folderOp(
+    () => rest.length ? remote('saveItem', { folderId, item: { ...it, rolos: rest } }) : remote('removeItem', { folderId, itemKey: key }),
+    () => { const d = readFolders(), f = folderById(d, folderId); if (!f) return false;
+      const x = f.items.find(y => y.key === key); if (!x) return true;
+      x.rolos = x.rolos.filter(y => !same(y)); if (!x.rolos.length) f.items = f.items.filter(y => y.key !== key);
+      f.updatedAt = Date.now(); return writeFolders(d); });
+}
 async function removeItemFrom(folderId, key) {
   return folderOp(
     () => remote('removeItem', { folderId, itemKey: key }),
@@ -951,7 +964,16 @@ function renderBaixas(f, body) {
     row.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); openBaixa(f.id, it, r); } };
     const ck = document.createElement('label'); ck.className = 'bx-check'; ck.title = 'Baixa efetuada';
     const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = !!r.baixado; inp.setAttribute('aria-label', `Baixa efetuada do RG ${r.rg}`);
-    inp.onchange = () => setBaixado(f.id, it.key, r, inp.checked);
+    inp.onchange = async () => {
+      if (!inp.checked) return setBaixado(f.id, it.key, r, false);
+      // baixa feita no Protheus: confirma e o RG sai da pasta
+      const ok = confirm(`Confirmar que a baixa já foi feita no Protheus?\n\nRG ${r.rg}\n${it.descricao || it.produto} (${it.produto})\nPeso: ${fmtNum(Number(r.pesoBaixa), 2)} kg${hasVal(r.mc) ? ' · MC ' + r.mc : ''}\n\nAo confirmar, o RG sai da pasta${isShared() ? ' para todos os usuários' : ''}.`);
+      if (!ok) { inp.checked = false; return; }
+      row.classList.add('leaving'); inp.disabled = true;
+      const done = await removeRollFrom(f.id, it.key, r);
+      if (done) message(`Baixa do RG ${r.rg} confirmada. O RG saiu da pasta "${f.name}".`, 'success');
+      else { row.classList.remove('leaving'); inp.disabled = false; inp.checked = false; }
+    };
     ck.append(inp);
     // RG em cima; descrição e código embaixo, no mesmo estilo
     const c1 = document.createElement('span'); c1.className = 'bx-main';
