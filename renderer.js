@@ -101,6 +101,47 @@ function setTheme(t) {
   $('navThemeLabel').textContent = dark ? 'Claro' : 'Escuro';
 }
 
+/* ------------------------- janela de confirmação ------------------------- */
+// Substitui o confirm() do navegador, que alguns celulares e o modo app bloqueiam ou mostram sem formatação.
+// askConfirm({ title, text, card, note, okText, cancelText, altText, tone }) -> 'ok' | 'alt' | false
+let askResolve = null;
+function askConfirm(o = {}) {
+  let m = $('askModal');
+  if (!m) {
+    m = document.createElement('section'); m.id = 'askModal'; m.className = 'modal-backdrop hidden'; m.setAttribute('role', 'alertdialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'askTitle');
+    m.innerHTML = '<div class="ask-modal"><div class="ask-icon" aria-hidden="true"></div><span class="section-kicker ask-kicker"></span><h2 id="askTitle"></h2><p class="ask-text"></p><div class="ask-card"><span></span><b></b><div class="ask-lines"></div></div><p class="ask-note"></p><div class="ask-actions"><button type="button" class="secondary ask-cancel"></button><button type="button" class="secondary ask-alt"></button><button type="button" class="primary ask-ok"></button></div></div>';
+    document.body.append(m);
+    m.addEventListener('mousedown', e => { if (e.target === m) closeAsk(false); });
+    m.querySelector('.ask-cancel').onclick = () => closeAsk(false);
+    m.querySelector('.ask-alt').onclick = () => closeAsk('alt');
+    m.querySelector('.ask-ok').onclick = () => closeAsk('ok');
+  }
+  if (askResolve) askResolve(false);
+  const q = sel => m.querySelector(sel), tone = o.tone || 'accent';
+  q('.ask-modal').className = 'ask-modal tone-' + tone;
+  q('.ask-icon').textContent = o.icon || { ok: '✓', danger: '!', warn: '!', accent: '?' }[tone] || '?';
+  q('.ask-kicker').textContent = o.kicker || 'CONFIRMAR';
+  q('#askTitle').textContent = o.title || 'Confirmar?';
+  q('.ask-text').textContent = o.text || ''; q('.ask-text').classList.toggle('hidden', !o.text);
+  const card = q('.ask-card'); card.classList.toggle('hidden', !o.card);
+  if (o.card) {
+    card.querySelector('span').textContent = o.card.label || '';
+    card.querySelector('b').textContent = o.card.title || '';
+    const ls = card.querySelector('.ask-lines'); ls.replaceChildren();
+    (o.card.lines || []).filter(Boolean).forEach(([k, v]) => { const d = document.createElement('div'); const a = document.createElement('small'); a.textContent = k; const b = document.createElement('strong'); b.textContent = v; d.append(a, b); ls.append(d); });
+  }
+  q('.ask-note').textContent = o.note || ''; q('.ask-note').classList.toggle('hidden', !o.note);
+  q('.ask-ok').textContent = o.okText || 'Confirmar';
+  q('.ask-ok').classList.toggle('danger-btn', tone === 'danger');
+  q('.ask-cancel').textContent = o.cancelText || 'Cancelar';
+  q('.ask-alt').textContent = o.altText || ''; q('.ask-alt').classList.toggle('hidden', !o.altText);
+  m.classList.remove('hidden');
+  setTimeout(() => q('.ask-ok').focus(), 50);
+  return new Promise(res => { askResolve = res; });
+}
+function closeAsk(v) { const m = $('askModal'); if (m) m.classList.add('hidden'); const r = askResolve; askResolve = null; if (r) r(v); }
+const askOk = async o => (await askConfirm(o)) === 'ok';
+
 /* ------------------------------ celular ------------------------------ */
 const IS_THIS_PC = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
 // aberto pelo NOVA.exe: avisa que a janela continua aberta; fechando todas, o NOVA.exe se encerra sozinho
@@ -320,8 +361,8 @@ function bioFromPassword(e) {
   if (!bioAvailable || !bioData() || bioSkipField || $('password').value) return;
   e.preventDefault(); $('password').blur(); bioLogin();
 }
-function bioRemove() {
-  if (!confirm(`Remover ${BIO_O} ${BIO_LABEL} deste aparelho? Você volta a entrar com usuário e senha.`)) return;
+async function bioRemove() {
+  if (!(await askOk({ tone: 'warn', kicker: BIO_LABEL.toUpperCase(), title: `Remover ${BIO_O} ${BIO_LABEL} deste aparelho?`, text: 'Você volta a entrar com usuário e senha.', okText: 'Remover' }))) return;
   lsDel(BIO_KEY); lsDel(BIO_SKIP); updateBioUi();
   message(IS_IOS ? 'Face ID removido do NOVA. Se quiser, apague também a chave "NOVA" em Ajustes › Senhas.' : 'Biometria removida do NOVA neste aparelho.', 'info');
 }
@@ -538,7 +579,7 @@ async function saveDefect() {
   finally { btn.disabled = false; btn.textContent = 'Salvar na planilha'; }
 }
 async function removeDefect() {
-  if (!defectTarget || !confirm(`Remover a marcação de defeito da OP ${defectTarget.op}?`)) return;
+  if (!defectTarget || !(await askOk({ tone: 'danger', kicker: 'DEFEITO', title: `Remover a marcação de defeito da OP ${defectTarget.op}?`, okText: 'Remover marcação' }))) return;
   try {
     const j = sharedDefects() ? await remoteDefects('removeDefect', { produto: defectTarget.produto, op: defectTarget.op }) : null;
     if (j) { setDefects(j.defects); lsSet(DCACHE_KEY, j.defects); }
@@ -705,7 +746,9 @@ async function onSaveGroup() {
   if (!f) { folderPickPending = true; openFolders(); return; }
   const k = itemKey(field(g.rows[0], 'Z5_PROD'), g.op, g.partida);
   if (f.items.some(it => it.key === k)) {
-    if (confirm(`A OP ${g.op} já está na pasta "${f.name}".\n\nOK = remover da pasta\nCancelar = atualizar os rolos (mantém o que já foi pego)`)) {
+    const ans = await askConfirm({ tone: 'warn', kicker: 'OP JÁ SALVA', title: `A OP ${g.op} já está na pasta "${f.name}"`, text: 'Você pode atualizar os rolos (mantém o que já foi pego) ou tirar a OP da pasta.', okText: '↻ Atualizar rolos', altText: 'Tirar da pasta', cancelText: 'Cancelar' });
+    if (!ans) return;
+    if (ans === 'alt') {
       if (await removeItemFrom(f.id, k)) message(`OP ${g.op} removida da pasta "${f.name}".`, 'info');
       return;
     }
@@ -736,7 +779,7 @@ function renderSharedBox() {
     const up = document.createElement('button'); up.type = 'button'; up.className = 'link-btn'; up.textContent = '↻ Atualizar';
     up.onclick = async () => { if (await syncFolders(false)) { rerenderFolders(); updateFolderUi(); } };
     const off = document.createElement('button'); off.type = 'button'; off.className = 'link-btn danger-link'; off.textContent = 'Desconectar';
-    off.onclick = () => { if (!confirm('Desconectar este aparelho das pastas compartilhadas? (nada é apagado da planilha)')) return; lsDel(PKEY_KEY); if (!fixedUrl) lsDel(PURL_KEY); lsDel(FCACHE_KEY); stopFolderPoll(); renderFoldersList(); updateFolderUi(); };
+    off.onclick = async () => { if (!(await askOk({ tone: 'warn', kicker: 'PASTAS DA EQUIPE', title: 'Desconectar este aparelho das pastas compartilhadas?', text: 'Nada é apagado da planilha.', okText: 'Desconectar' }))) return; lsDel(PKEY_KEY); if (!fixedUrl) lsDel(PURL_KEY); lsDel(FCACHE_KEY); stopFolderPoll(); renderFoldersList(); updateFolderUi(); };
     menu.append(info, up, off);
     pill.onclick = () => menu.classList.toggle('hidden');
     box.append(pill, menu);
@@ -841,7 +884,7 @@ async function openFolder(id) {
 }
 async function deleteFolderAction() {
   const d = readFolders(), f = folderById(d, folderOpenId);
-  if (!f || !confirm(`Excluir a pasta "${f.name}" e todas as OPs salvas nela?${isShared() ? '\n\nEla some para TODOS os usuários.' : ''}`)) return;
+  if (!f || !(await askOk({ tone: 'danger', kicker: 'EXCLUIR PASTA', title: `Excluir a pasta "${f.name}"?`, text: `Todas as OPs salvas nela também saem.${isShared() ? ' Ela some para TODOS os usuários.' : ''}`, okText: 'Excluir pasta' }))) return;
   const ok = await folderOp(
     async () => { await remote('deleteFolder', { folderId: f.id }); if (lsGet(FACTIVE_KEY, null) === f.id) setActive(null); },
     () => { d.folders = d.folders.filter(x => x.id !== f.id); if (d.active === f.id) d.active = null; return writeFolders(d); });
@@ -867,7 +910,7 @@ async function clearFolderAction(onlyPicked) {
   const keys = f.items.filter(it => !onlyPicked || opPicked(it).length).map(it => it.key);
   if (!keys.length) { closeClearBox(); return message(onlyPicked ? 'Nenhuma OP pega para tirar.' : 'A pasta já está vazia.', 'info'); }
   const what = onlyPicked ? `as ${keys.length} OP(s) já pegas` : `TODAS as ${keys.length} OP(s)`;
-  if (!confirm(`Tirar ${what} da pasta "${f.name}"?${isShared() ? '\n\nA mudança vale para TODOS os usuários.' : ''}\n\nIsso não pode ser desfeito (exporte a planilha antes, se quiser guardar).`)) return;
+  if (!(await askOk({ tone: 'danger', kicker: 'LIMPAR PASTA', title: `Tirar ${what} da pasta "${f.name}"?`, text: `${isShared() ? 'A mudança vale para TODOS os usuários. ' : ''}Isso não pode ser desfeito (exporte a planilha antes, se quiser guardar).`, okText: 'Limpar' }))) return;
   closeClearBox();
   const btns = ['folderClear', 'folderClearDone', 'folderClearAll'].map($); btns.forEach(b => { b.disabled = true; });
   const ok = await folderOp(
@@ -967,7 +1010,9 @@ function renderBaixas(f, body) {
     inp.onchange = async () => {
       if (!inp.checked) return setBaixado(f.id, it.key, r, false);
       // baixa feita no Protheus: confirma e o RG sai da pasta
-      const ok = confirm(`Confirmar que a baixa já foi feita no Protheus?\n\nRG ${r.rg}\n${it.descricao || it.produto} (${it.produto})\nPeso: ${fmtNum(Number(r.pesoBaixa), 2)} kg${hasVal(r.mc) ? ' · MC ' + r.mc : ''}\n\nAo confirmar, o RG sai da pasta${isShared() ? ' para todos os usuários' : ''}.`);
+      const ok = await askOk({ tone: 'ok', kicker: 'BAIXA EFETUADA', title: 'A baixa já foi feita no Protheus?',
+        card: { label: `RG ${r.rg}`, title: it.descricao || it.produto, lines: [['Código', it.produto], ['Peso para baixa', fmtNum(Number(r.pesoBaixa), 2) + ' kg'], hasVal(r.mc) ? ['MC', String(r.mc)] : null, ['OP', `${it.op || '—'} · ${it.partida || '—'}`]] },
+        note: `Ao confirmar, o RG sai da pasta "${f.name}"${isShared() ? ' para todos os usuários' : ''}.`, okText: '✓ Sim, baixa feita', cancelText: 'Ainda não' });
       if (!ok) { inp.checked = false; return; }
       row.classList.add('leaving'); inp.disabled = true;
       const done = await removeRollFrom(f.id, it.key, r);
@@ -1144,7 +1189,7 @@ function opRow(f, it) {
     });
     const foot = document.createElement('div'); foot.className = 'fo-foot';
     const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'link-btn danger-link'; rm.textContent = 'Tirar da pasta';
-    rm.onclick = async () => { if (!confirm(`Tirar a OP ${it.op} da pasta "${f.name}"?`)) return; folderOpenOps.delete(it.key); await removeItemFrom(f.id, it.key); updateSaveBtn(); };
+    rm.onclick = async () => { if (!(await askOk({ tone: 'danger', kicker: 'TIRAR DA PASTA', title: `Tirar a OP ${it.op} da pasta "${f.name}"?`, card: { label: 'PRODUTO', title: it.descricao || it.produto, lines: [['Código', it.produto], ['RGs', String(it.rolos.length)]] }, okText: 'Tirar da pasta' }))) return; folderOpenOps.delete(it.key); await removeItemFrom(f.id, it.key); updateSaveBtn(); };
     const close = document.createElement('button'); close.type = 'button'; close.className = 'link-btn'; close.textContent = 'Fechar';
     close.onclick = () => { folderOpenOps.delete(it.key); renderFolder(); };
     foot.append(rm, close);
@@ -1823,8 +1868,8 @@ async function openPriorityEditor() {
     $('priorityModal').classList.remove('hidden');
   } catch (e) { message(e.message, 'error'); }
 }
-function closePriorityEditor(force = false) {
-  if (!force && isDirty() && !confirm('Há alterações que ainda não foram salvas na planilha. Descartar?')) return false;
+async function closePriorityEditor(force = false) {
+  if (!force && isDirty() && !(await askOk({ tone: 'warn', kicker: 'PRIORIDADES', title: 'Descartar as alterações?', text: 'Há alterações que ainda não foram salvas na planilha.', okText: 'Descartar' }))) return false;
   $('priorityModal').classList.add('hidden'); return true;
 }
 async function savePriority() {
@@ -1876,7 +1921,7 @@ async function importFromProtheus() {
   } finally { btn.disabled = false; btn.textContent = '⇣ Importar do Protheus (SBM)'; }
 }
 async function reloadPriorityFromDisk() {
-  if (isDirty() && !confirm('Recarregar da planilha vai descartar as alterações ainda não salvas. Continuar?')) return;
+  if (isDirty() && !(await askOk({ tone: 'warn', kicker: 'PRIORIDADES', title: 'Recarregar da planilha?', text: 'As alterações ainda não salvas serão descartadas.', okText: 'Recarregar' }))) return;
   try { const d = await loadPriority(); resetDraft(); renderPriorityEditor(); showWarnings(d.warnings); message('Regras recarregadas da planilha.', 'success'); }
   catch (e) { message(e.message, 'error'); }
 }
@@ -1907,7 +1952,7 @@ $('newSearchBtn').onclick = goSearch;
 $('openHistory').onclick = openHistory;
 $('closeHistory').onclick = closeHistory; $('historyClose2').onclick = closeHistory;
 $('historyFilter').oninput = renderHistory;
-$('clearHistory').onclick = () => { if (!getHistory().length || !confirm('Apagar todo o histórico de pesquisas deste computador?')) return; saveHistory([]); renderHistory(); renderRecent(); };
+$('clearHistory').onclick = async () => { if (!getHistory().length || !(await askOk({ tone: 'danger', kicker: 'HISTÓRICO', title: 'Apagar todo o histórico de pesquisas?', text: 'Só deste aparelho.', okText: 'Apagar' }))) return; saveHistory([]); renderHistory(); renderRecent(); };
 $('historyModal').addEventListener('mousedown', e => { if (e.target === $('historyModal')) closeHistory(); });
 $('addressFilter').onchange = applyFilters;
 $('punhoBtn').onclick = togglePunhoMode;
@@ -1988,7 +2033,8 @@ $('dismissMessage').onclick = clearMessage;
 $('closeResults').onclick = goSearch;
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (!$('baixaModal').classList.contains('hidden')) closeBaixa();
+  if ($('askModal') && !$('askModal').classList.contains('hidden')) closeAsk(false);
+  else if (!$('baixaModal').classList.contains('hidden')) closeBaixa();
   else if (!$('foldersModal').classList.contains('hidden')) closeFolders();
   else if (!$('phoneModal').classList.contains('hidden')) $('phoneModal').classList.add('hidden');
   else if (!$('defectModal').classList.contains('hidden')) closeDefect();
