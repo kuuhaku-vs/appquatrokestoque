@@ -868,26 +868,45 @@ th.num-cell,td.num-cell{text-align:right}
   .bx-count{flex-basis:100%}
 }
 
+/* ---------- opções de impressão ---------- */
+.print-opts{display:flex;flex-direction:column;gap:10px;padding:12px 14px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line)}
+.print-opts>b{font-size:13.5px;color:var(--ink)}
+.po-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.po-line>span{font-size:12px;font-weight:650;color:var(--ink-2)}
+.po-line .seg button{padding:8px 12px}
+.po-hint{margin:0;font-size:12px;color:var(--muted)}
+.po-acts{display:flex;justify-content:flex-end;align-items:center;gap:10px}
+.po-acts .primary{height:40px;padding:0 18px}
+@media(max-width:720px){.po-line .seg{width:100%;display:flex}.po-line .seg button{flex:1}.po-acts .primary{flex:1;height:44px}}
+
 /* ---------- impressão das baixas (logo do Grupo Quatro K + tabela) ---------- */
 .print-baixas{display:none}
 @media print{
   body.printing-baixas>*:not(#printBaixas){display:none!important}
   html:has(body.printing-baixas),body.printing-baixas{background:#fff!important;background-image:none!important;padding:0!important}
   body.printing-baixas::before,body.printing-baixas::after{display:none!important}
-  body.printing-baixas #printBaixas{display:block;color:#111;font-family:"Segoe UI",Arial,sans-serif}
-  @page{size:A4;margin:14mm 12mm}
-  .print-baixas header{display:flex;align-items:center;gap:18px;padding-bottom:10px;margin-bottom:12px;border-bottom:2px solid #1c3f94}
-  .print-baixas header img{height:52px;width:auto}
-  .print-baixas h1{margin:0;font-size:19px;color:#1c3f94}
-  .print-baixas header p{margin:3px 0 0;font-size:11px;color:#444}
-  .print-baixas table{width:100%;border-collapse:collapse;font-size:11.5px}
-  .print-baixas th{text-align:left;font-size:9.5px;letter-spacing:.05em;text-transform:uppercase;color:#555;border-bottom:1.5px solid #333;padding:6px 6px}
-  .print-baixas td{padding:7px 6px;border-bottom:1px solid #ccc;vertical-align:top}
+  body.printing-baixas #printBaixas{display:block;color:#111;font-family:"Segoe UI",Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .print-baixas header{display:flex;align-items:center;gap:16px;padding-bottom:3mm;margin-bottom:3mm;border-bottom:2px solid #1c3f94}
+  .print-baixas header img{height:13mm;width:auto}
+  .print-baixas h1{margin:0;font-size:18px;color:#1c3f94}
+  .print-baixas header p{margin:2px 0 0;font-size:10.5px;color:#444}
+  .print-baixas .pb-cols{display:grid;grid-template-columns:1fr;gap:6mm;align-items:start}
+  .print-baixas.cols-2 .pb-cols{grid-template-columns:1fr 1fr}
+  .print-baixas table{width:100%;border-collapse:collapse;font-size:var(--fs,11px);table-layout:fixed}
+  .print-baixas th{text-align:left;font-size:8.5px;letter-spacing:.04em;text-transform:uppercase;color:#555;border-bottom:1.5px solid #333;padding:1.2mm 1.2mm}
+  .print-baixas td{height:var(--rh,9mm);padding:0 1.2mm;border-bottom:.6px solid #bbb;vertical-align:middle;line-height:1.15;overflow:hidden}
   .print-baixas tr{break-inside:avoid}
-  .print-baixas td small{display:block;font-size:9.5px;color:#666}
-  .print-baixas td.ck{width:46px;text-align:center;font-size:15px}
-  .print-baixas th.ck{width:46px;text-align:center}
-  .print-baixas .rg{font-weight:700;white-space:nowrap}
+  .print-baixas td small{display:block;font-size:.82em;color:#666}
+  .print-baixas td.ds{white-space:nowrap;text-overflow:ellipsis}
+  .print-baixas td.ck,.print-baixas th.ck{width:9mm;text-align:center}
+  .print-baixas td.ck{font-size:1.3em}
+  .print-baixas th:nth-child(2),.print-baixas td.rg{width:17mm}
+  .print-baixas td.rg{font-weight:700;white-space:nowrap}
+  .print-baixas th.n{width:15mm}
+  .print-baixas th.n+th.n{width:11mm}
   .print-baixas .n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-  .print-baixas footer{display:flex;justify-content:space-between;margin-top:14px;font-size:11px;color:#333}
+  .print-baixas.cols-1 th:nth-child(2),.print-baixas.cols-1 td.rg{width:24mm}
+  .print-baixas.cols-1 th.n{width:22mm}
+  .print-baixas.cols-1 th.n+th.n{width:16mm}
+  .print-baixas footer{display:flex;justify-content:space-between;margin-top:4mm;font-size:10.5px;color:#333}
 }

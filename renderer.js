@@ -934,7 +934,7 @@ function renderBaixas(f, body) {
   const done = list.filter(x => x.r.baixado).length;
   const acts = document.createElement('div'); acts.className = 'bx-actions';
   const info = document.createElement('span'); info.className = 'bx-count'; info.textContent = `${done} de ${list.length} baixa(s) efetuada(s)`;
-  const pr = document.createElement('button'); pr.type = 'button'; pr.className = 'secondary'; pr.textContent = '🖨 Imprimir'; pr.onclick = () => printBaixas(f);
+  const pr = document.createElement('button'); pr.type = 'button'; pr.className = 'secondary'; pr.textContent = '🖨 Imprimir'; pr.onclick = () => togglePrintOpts(f, body);
   const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'secondary'; cp.textContent = '📋 Copiar lista'; cp.onclick = () => copyBaixas(f);
   acts.append(info, pr, cp); body.append(acts);
   const tbl = document.createElement('div'); tbl.className = 'bx-table';
@@ -966,17 +966,66 @@ async function copyBaixas(f) {
   try { await navigator.clipboard.writeText(lines.join('\n')); message('Lista de baixas copiada. Cole no WhatsApp, e-mail ou bloco de notas.', 'success'); }
   catch { message('Não foi possível copiar neste navegador. Use 🖨 Imprimir ou ↓ Exportar planilha.', 'error'); }
 }
-// impressão: folha só com a logo do grupo e a tabela de baixas (o resto da tela some no papel)
-function printBaixas(f) {
+// impressão: folha só com a logo do grupo e a tabela de baixas (o resto da tela some no papel).
+// Opções: retrato/paisagem e 1 ou 2 colunas; no automático, divide em 2 colunas e diminui a letra
+// para caber tudo numa página (se ainda assim não couber, continua na página seguinte).
+const PRINT_KEY = 'nova_print_baixas';
+const printPrefs = () => Object.assign({ orient: 'portrait', cols: 'auto' }, lsGet(PRINT_KEY, {}) || {});
+function printPlan(n, prefs) {
+  const avail = prefs.orient === 'landscape' ? 145 : 232;   // mm livres para as linhas (A4, tirando margens, cabeçalho e rodapé)
+  const ROW = 9, MIN = 4.4;                                   // altura normal e mínima da linha (mm)
+  const cols = prefs.cols === '1' ? 1 : prefs.cols === '2' ? 2 : (n * ROW > avail ? 2 : 1);
+  const perCol = Math.max(1, Math.ceil(n / cols));
+  const rh = Math.max(MIN, Math.min(ROW, avail / perCol));
+  const pages = Math.max(1, Math.ceil(perCol / Math.floor(avail / rh)));
+  return { cols, perCol, rh, pages, fs: rh >= 8 ? 11 : rh >= 6.6 ? 10 : rh >= 5.6 ? 9 : 8, showCode: rh >= 7 };
+}
+function togglePrintOpts(f, body) {
+  let box = body.querySelector('.print-opts');
+  if (box) { box.remove(); return; }
+  const p = printPrefs(), n = baixaRolls(f).length;
+  box = document.createElement('div'); box.className = 'print-opts';
+  const title = document.createElement('b'); title.textContent = 'Imprimir baixas';
+  const seg = (label, key, opts) => {
+    const wrap = document.createElement('div'); wrap.className = 'po-line';
+    const l = document.createElement('span'); l.textContent = label;
+    const g = document.createElement('div'); g.className = 'seg'; g.setAttribute('role', 'group'); g.setAttribute('aria-label', label);
+    opts.forEach(([v, t]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.classList.toggle('on', p[key] === v);
+      b.onclick = () => { p[key] = v; lsSet(PRINT_KEY, p); g.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); info(); }; g.append(b); });
+    wrap.append(l, g); return wrap;
+  };
+  const hint = document.createElement('p'); hint.className = 'po-hint';
+  const info = () => { const pl = printPlan(n, p); hint.textContent = `${n} RG(s) · ${pl.cols === 2 ? '2 colunas' : '1 coluna'} · ${pl.pages === 1 ? 'cabe em 1 página' : pl.pages + ' páginas'}${pl.fs < 11 ? ' (letra menor)' : ''}.`; };
+  const go = document.createElement('button'); go.type = 'button'; go.className = 'primary'; go.textContent = '🖨 Imprimir';
+  go.onclick = () => printBaixas(f, p);
+  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'link-btn'; cancel.textContent = 'Fechar';
+  cancel.onclick = () => box.remove();
+  const acts = document.createElement('div'); acts.className = 'po-acts'; acts.append(cancel, go);
+  box.append(title, seg('Orientação', 'orient', [['portrait', 'Retrato'], ['landscape', 'Paisagem']]), seg('Colunas', 'cols', [['auto', 'Automático'], ['1', '1'], ['2', '2']]), hint, acts);
+  info();
+  body.querySelector('.bx-actions').after(box);
+}
+function printBaixas(f, prefs = printPrefs()) {
   const list = baixaRolls(f); if (!list.length) return;
+  const plan = printPlan(list.length, prefs);
   const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const rows = list.map(({ it, r }) => `<tr><td class="ck">${r.baixado ? '☑' : '☐'}</td><td class="rg">${esc(r.rg)}</td><td>${esc(it.descricao || 'Produto')}<small>${esc(it.produto)}</small></td><td class="n">${esc(fmtNum(Number(r.pesoBaixa), 2))}</td><td class="n">${esc(hasVal(r.mc) ? r.mc : '—')}</td></tr>`).join('');
+  const row = ({ it, r }) => `<tr><td class="ck">${r.baixado ? '☑' : '☐'}</td><td class="rg">${esc(r.rg)}</td><td class="ds">${esc(it.descricao || 'Produto')}${plan.showCode ? `<small>${esc(it.produto)}</small>` : ''}</td><td class="n">${esc(fmtNum(Number(r.pesoBaixa), 2))}</td><td class="n">${esc(hasVal(r.mc) ? r.mc : '—')}</td></tr>`;
+  const table = rows => `<table><thead><tr><th class="ck">Baixa</th><th>RG</th><th>Produto (descrição)</th><th class="n">Peso (kg)</th><th class="n">MC</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>`;
+  // colunas em ordem de leitura: a 1ª coluna termina e a 2ª continua de onde parou
+  const parts = []; for (let k = 0; k < plan.cols; k++) parts.push(list.slice(k * plan.perCol, (k + 1) * plan.perCol));
   let box = $('printBaixas');
   if (!box) { box = document.createElement('div'); box.id = 'printBaixas'; box.className = 'print-baixas'; document.body.append(box); }
+  box.className = `print-baixas cols-${plan.cols}`;
+  box.style.setProperty('--rh', plan.rh.toFixed(2) + 'mm');
+  box.style.setProperty('--fs', plan.fs + 'px');
   box.innerHTML = `<header><img src="logo-grupo4k.png" alt="Grupo Quatro K"><div><h1>Baixas de estoque</h1><p>Pasta <b>${esc(f.name)}</b> · ${esc(now)}${currentUser ? ' · ' + esc(currentUser) : ''}</p></div></header>
-    <table><thead><tr><th class="ck">Baixa</th><th>RG</th><th>Produto (descrição)</th><th class="n">Peso (kg)</th><th class="n">MC</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="pb-cols">${parts.filter(x => x.length).map(table).join('')}</div>
     <footer><span>${list.length} RG(s) · ${list.filter(x => x.r.baixado).length} baixa(s) efetuada(s)</span><span>Conferido por: ______________________</span></footer>`;
+  // orientação da folha (Chrome/Edge/Android usam; no iPhone escolha na tela de impressão)
+  let pg = $('printPageStyle');
+  if (!pg) { pg = document.createElement('style'); pg.id = 'printPageStyle'; document.head.append(pg); }
+  pg.textContent = `@media print{@page{size:A4 ${prefs.orient === 'landscape' ? 'landscape' : 'portrait'};margin:12mm}}`;
   document.body.classList.add('printing-baixas');
   const done = () => { document.body.classList.remove('printing-baixas'); window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
