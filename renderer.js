@@ -894,7 +894,7 @@ function renderFolder() {
   $('folderUse').disabled = d.active === f.id;
   document.querySelectorAll('#folderView .seg button').forEach(b => {
     b.classList.toggle('on', b.dataset.show === folderShow);
-    const n = b.dataset.show === 'todo' ? s.todo : b.dataset.show === 'done' ? s.done : b.dataset.show === 'baixas' ? pickedRolls(f).length : s.ops;
+    const n = b.dataset.show === 'todo' ? s.todo : b.dataset.show === 'done' ? s.done : b.dataset.show === 'baixas' ? baixaRolls(f).length : s.ops;
     b.textContent = `${{ todo: 'A pegar', all: 'Todas', done: 'Pegas', baixas: 'Baixas' }[b.dataset.show]} ${n}`;
   });
   const body = $('folderBody'); body.replaceChildren();
@@ -925,63 +925,81 @@ function renderFolder() {
     sec.append(list); body.append(sec);
   });
 }
-// Aba "Baixas": cada RG pego, agrupado pela descrição do item, com o Peso Total e o MC a baixar.
+// Aba "Baixas": só os RGs pegos que têm Peso Total para baixar, em ordem alfabética pela descrição.
+// A caixa marca que a baixa já foi feita no Protheus (fica gravada no aparelho e na planilha da equipe).
+const baixaRolls = f => pickedRolls(f).filter(x => hasVal(x.r.pesoBaixa));
 function renderBaixas(f, body) {
-  const list = pickedRolls(f);
-  if (!list.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Nenhum RG pego ainda. Marque os RGs em "A pegar" informando o Peso Total e o MC.'; body.append(e); return; }
-  const sumKg = a => a.reduce((t, x) => t + (hasVal(x.r.pesoBaixa) ? Number(x.r.pesoBaixa) : 0), 0);
-  const sumMc = a => a.reduce((t, x) => t + (hasVal(x.r.mc) ? (parseNumber(x.r.mc) || 0) : 0), 0);
-  const missing = list.filter(x => !hasVal(x.r.pesoBaixa) && !hasVal(x.r.mc)).length;
-  // resumo geral
-  const top = document.createElement('div'); top.className = 'bx-summary';
-  const cell = (label, value) => { const d = document.createElement('div'); const sp = document.createElement('span'); sp.textContent = label; const b = document.createElement('b'); b.textContent = value; d.append(sp, b); return d; };
-  top.append(cell('RGs', String(list.length)), cell('Peso Total', fmtNum(sumKg(list), 2) + ' kg'), cell('MC', fmtNum(sumMc(list), 0, 3)));
-  body.append(top);
-  if (missing) { const w = document.createElement('p'); w.className = 'bx-warn'; w.textContent = `⚠ ${missing} RG(s) pego(s) sem Peso Total nem MC. Toque no RG para informar.`; body.append(w); }
-  const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'secondary bx-copy'; copy.textContent = '📋 Copiar lista de baixas';
-  copy.onclick = async () => {
-    const lines = [`Baixas da pasta ${f.name}`];
-    let last = '';
-    list.forEach(({ it, r }) => {
-      const g = (it.descricao || it.produto) + ' (' + it.produto + ')';
-      if (g !== last) { lines.push('', g); last = g; }
-      lines.push(`RG ${r.rg} · OP ${it.op} · Peso ${hasVal(r.pesoBaixa) ? fmtNum(Number(r.pesoBaixa), 2) + ' kg' : '—'} · MC ${hasVal(r.mc) ? r.mc : '—'}`);
-    });
-    lines.push('', `Total: ${list.length} RG(s) · ${fmtNum(sumKg(list), 2)} kg · MC ${fmtNum(sumMc(list), 0, 3)}`);
-    try { await navigator.clipboard.writeText(lines.join('\n')); message('Lista de baixas copiada. Cole no WhatsApp, e-mail ou bloco de notas.', 'success'); }
-    catch { message('Não foi possível copiar neste navegador. Use ↓ Exportar planilha.', 'error'); }
-  };
-  body.append(copy);
-  // grupos por descrição (já em ordem alfabética)
-  const groups = new Map();
-  list.forEach(x => { const k = x.it.produto; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(x); });
-  groups.forEach((rows, prod) => {
-    const sec = document.createElement('section'); sec.className = 'fp bx-group';
-    const h = document.createElement('div'); h.className = 'fp-head';
-    const t = document.createElement('span');
-    const ds = document.createElement('strong'); ds.textContent = rows[0].it.descricao || 'Produto';
-    const code = document.createElement('b'); code.textContent = prod;
-    t.append(ds, code); h.append(t); sec.append(h);
-    const tbl = document.createElement('div'); tbl.className = 'bx-table';
-    const head = document.createElement('div'); head.className = 'bx-row bx-head';
-    ['RG', 'OP', 'Peso (kg)', 'MC'].forEach(x => { const c = document.createElement('span'); c.textContent = x; head.append(c); });
-    tbl.append(head);
-    rows.forEach(({ it, r }) => {
-      const row = document.createElement('button'); row.type = 'button'; row.className = 'bx-row' + (!hasVal(r.pesoBaixa) && !hasVal(r.mc) ? ' missing' : '');
-      row.title = 'Corrigir a baixa deste RG';
-      const c1 = document.createElement('b'); c1.textContent = r.rg || '—';
-      const c2 = document.createElement('span'); c2.textContent = it.op || '—';
-      const c3 = document.createElement('strong'); c3.textContent = hasVal(r.pesoBaixa) ? fmtNum(Number(r.pesoBaixa), 2) : '—';
-      const c4 = document.createElement('strong'); c4.textContent = hasVal(r.mc) ? r.mc : '—';
-      row.append(c1, c2, c3, c4);
-      row.onclick = () => openBaixa(f.id, it, r);
-      tbl.append(row);
-    });
-    const tot = document.createElement('div'); tot.className = 'bx-row bx-total';
-    [`${rows.length} RG(s)`, 'Total', fmtNum(sumKg(rows), 2), fmtNum(sumMc(rows), 0, 3)].forEach(x => { const c = document.createElement('span'); c.textContent = x; tot.append(c); });
-    tbl.append(tot);
-    sec.append(tbl); body.append(sec);
+  const list = baixaRolls(f);
+  if (!list.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Nenhum RG com Peso Total para baixar. Ao marcar o RG em "A pegar", informe o Peso Total.'; body.append(e); return; }
+  const done = list.filter(x => x.r.baixado).length;
+  const acts = document.createElement('div'); acts.className = 'bx-actions';
+  const info = document.createElement('span'); info.className = 'bx-count'; info.textContent = `${done} de ${list.length} baixa(s) efetuada(s)`;
+  const pr = document.createElement('button'); pr.type = 'button'; pr.className = 'secondary'; pr.textContent = '🖨 Imprimir'; pr.onclick = () => printBaixas(f);
+  const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'secondary'; cp.textContent = '📋 Copiar lista'; cp.onclick = () => copyBaixas(f);
+  acts.append(info, pr, cp); body.append(acts);
+  const tbl = document.createElement('div'); tbl.className = 'bx-table';
+  const head = document.createElement('div'); head.className = 'bx-row bx-head';
+  ['', 'RG', 'Produto (descrição)', 'Peso (kg)', 'MC'].forEach((x, k) => { const c = document.createElement('span'); c.textContent = x; if (!k) c.setAttribute('aria-label', 'Baixa efetuada'); head.append(c); });
+  tbl.append(head);
+  list.forEach(({ it, r }) => {
+    const row = document.createElement('div'); row.className = 'bx-row' + (r.baixado ? ' done' : '');
+    const ck = document.createElement('label'); ck.className = 'bx-check'; ck.title = 'Baixa efetuada';
+    const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = !!r.baixado; inp.setAttribute('aria-label', `Baixa efetuada do RG ${r.rg}`);
+    inp.onchange = () => setBaixado(f.id, it.key, r, inp.checked);
+    ck.append(inp);
+    const c1 = document.createElement('button'); c1.type = 'button'; c1.className = 'bx-rg'; c1.textContent = r.rg || '—'; c1.title = 'Corrigir a baixa deste RG'; c1.onclick = () => openBaixa(f.id, it, r);
+    const c2 = document.createElement('span'); c2.className = 'bx-desc';
+    const dn = document.createElement('span'); dn.textContent = it.descricao || 'Produto';
+    const dc = document.createElement('small'); dc.textContent = it.produto + (r.baixado && r.baixadoBy ? ' · baixado por ' + r.baixadoBy : '');
+    c2.append(dn, dc);
+    const c3 = document.createElement('strong'); c3.textContent = fmtNum(Number(r.pesoBaixa), 2);
+    const c4 = document.createElement('strong'); c4.textContent = hasVal(r.mc) ? r.mc : '—';
+    row.append(ck, c1, c2, c3, c4);
+    tbl.append(row);
   });
+  body.append(tbl);
+}
+async function copyBaixas(f) {
+  const list = baixaRolls(f);
+  const lines = [`Baixas da pasta ${f.name}`, ''];
+  list.forEach(({ it, r }) => lines.push(`${r.baixado ? '[x]' : '[ ]'} RG ${r.rg} · ${it.descricao || it.produto} (${it.produto}) · Peso ${fmtNum(Number(r.pesoBaixa), 2)} kg · MC ${hasVal(r.mc) ? r.mc : '—'}`));
+  try { await navigator.clipboard.writeText(lines.join('\n')); message('Lista de baixas copiada. Cole no WhatsApp, e-mail ou bloco de notas.', 'success'); }
+  catch { message('Não foi possível copiar neste navegador. Use 🖨 Imprimir ou ↓ Exportar planilha.', 'error'); }
+}
+// impressão: folha só com a logo do grupo e a tabela de baixas (o resto da tela some no papel)
+function printBaixas(f) {
+  const list = baixaRolls(f); if (!list.length) return;
+  const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const rows = list.map(({ it, r }) => `<tr><td class="ck">${r.baixado ? '☑' : '☐'}</td><td class="rg">${esc(r.rg)}</td><td>${esc(it.descricao || 'Produto')}<small>${esc(it.produto)}</small></td><td class="n">${esc(fmtNum(Number(r.pesoBaixa), 2))}</td><td class="n">${esc(hasVal(r.mc) ? r.mc : '—')}</td></tr>`).join('');
+  let box = $('printBaixas');
+  if (!box) { box = document.createElement('div'); box.id = 'printBaixas'; box.className = 'print-baixas'; document.body.append(box); }
+  box.innerHTML = `<header><img src="logo-grupo4k.png" alt="Grupo Quatro K"><div><h1>Baixas de estoque</h1><p>Pasta <b>${esc(f.name)}</b> · ${esc(now)}${currentUser ? ' · ' + esc(currentUser) : ''}</p></div></header>
+    <table><thead><tr><th class="ck">Baixa</th><th>RG</th><th>Produto (descrição)</th><th class="n">Peso (kg)</th><th class="n">MC</th></tr></thead><tbody>${rows}</tbody></table>
+    <footer><span>${list.length} RG(s) · ${list.filter(x => x.r.baixado).length} baixa(s) efetuada(s)</span><span>Conferido por: ______________________</span></footer>`;
+  document.body.classList.add('printing-baixas');
+  const done = () => { document.body.classList.remove('printing-baixas'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  const img = box.querySelector('img');
+  const go = () => setTimeout(() => window.print(), 50);
+  if (img.complete) go(); else { img.onload = go; img.onerror = go; }
+}
+// marca/desmarca "baixa efetuada" (muda na hora e grava; se falhar, volta)
+async function setBaixado(folderId, key, r, baixado) {
+  const apply = d => { const f = folderById(d, folderId), it = f && f.items.find(x => x.key === key), rr = it && it.rolos.find(x => x.rg === r.rg && x.endereco === r.endereco);
+    if (rr) { rr.baixado = baixado; rr.baixadoBy = baixado ? (currentUser || '') : ''; rr.baixadoAt = baixado ? Date.now() : null; } return f; };
+  if (isShared()) {
+    const c = lsGet(FCACHE_KEY, { folders: [] }); apply(c); lsSet(FCACHE_KEY, c); renderFolder();
+    folderBusy = true;
+    try { await remote('setBaixado', { folderId, itemKey: key, rg: r.rg, endereco: r.endereco, baixado }); }
+    catch (e) {
+      message(/desconhecida/i.test(e.message) ? 'A planilha da equipe está com o script antigo e não guardou a "baixa efetuada". Atualize o PLANILHA_PASTAS_Code.gs no Apps Script.' : `${e.message} A marcação não foi gravada.`, 'error');
+      await syncFolders(true);
+    }
+    finally { folderBusy = false; rerenderFolders(); }
+  } else {
+    const d = readFolders(), f = apply(d); if (f) f.updatedAt = Date.now(); writeFolders(d); renderFolder();
+  }
 }
 function opRow(f, it) {
   const picked = opPicked(it), open = folderOpenOps.has(it.key), bad = /^DEFEITO/.test(it.status || '');
@@ -1071,7 +1089,7 @@ async function unpickBaixa() {
 async function togglePicked(folderId, key, r, picked, baixa = {}) {
   const pesoBaixa = picked && baixa.pesoBaixa !== undefined ? baixa.pesoBaixa : null, mc = picked ? String(baixa.mc || '') : '';
   const apply = d => { const f = folderById(d, folderId), it = f && f.items.find(x => x.key === key), rr = it && it.rolos.find(x => x.rg === r.rg && x.endereco === r.endereco);
-    if (rr) { const was = !!rr.picked; rr.picked = picked; rr.pickedAt = picked ? (was ? rr.pickedAt : Date.now()) : null; rr.pickedBy = picked ? (was && rr.pickedBy ? rr.pickedBy : (currentUser || '')) : ''; rr.pesoBaixa = pesoBaixa; rr.mc = mc; }
+    if (rr) { const was = !!rr.picked; rr.picked = picked; rr.pickedAt = picked ? (was ? rr.pickedAt : Date.now()) : null; rr.pickedBy = picked ? (was && rr.pickedBy ? rr.pickedBy : (currentUser || '')) : ''; rr.pesoBaixa = pesoBaixa; rr.mc = mc; if (!picked) { rr.baixado = false; rr.baixadoBy = ''; rr.baixadoAt = null; } }
     return f; };
   if (isShared()) {
     const c = lsGet(FCACHE_KEY, { folders: [] }); apply(c); lsSet(FCACHE_KEY, c); renderFolder();
@@ -1093,8 +1111,8 @@ function exportFolder() {
   const f = folderById(readFolders(), folderOpenId); if (!f) return;
   const q = v => { const t = String(v ?? '').replace(/[\r\n]+/g, ' '); return /[;"]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
   const num = v => (v === null || v === undefined || v === '') ? '' : String(v).replace('.', ',');
-  const lines = ['pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;pego_por;status;peso_baixa;mc'];
-  f.items.forEach(it => it.rolos.forEach(r => lines.push([f.name, it.produto, it.descricao, it.op, it.partida, it.enderecos, r.rg, r.endereco, r.armazem, num(r.peso), num(r.gramatura), num(r.cmc), r.picked ? 'sim' : 'nao', r.pickedBy || '', it.status, r.picked ? num(r.pesoBaixa) : '', r.picked ? (r.mc || '') : ''].map(q).join(';'))));
+  const lines = ['pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;pego_por;status;peso_baixa;mc;baixado'];
+  f.items.forEach(it => it.rolos.forEach(r => lines.push([f.name, it.produto, it.descricao, it.op, it.partida, it.enderecos, r.rg, r.endereco, r.armazem, num(r.peso), num(r.gramatura), num(r.cmc), r.picked ? 'sim' : 'nao', r.pickedBy || '', it.status, r.picked ? num(r.pesoBaixa) : '', r.picked ? (r.mc || '') : '', r.picked && r.baixado ? 'sim' : ''].map(q).join(';'))));
   const blob = new Blob(['﻿' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `PASTA_${f.name.replace(/[^\w-]+/g, '_')}.csv`;
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
@@ -1115,7 +1133,7 @@ function parseFoldersCsv(text) {
     const f = folders.get(lk), key = itemKey(g('produto'), g('op'), g('partida'));
     let it = f.items.find(x => x.key === key);
     if (!it) { it = { key, produto: g('produto').toUpperCase(), descricao: g('descricao'), op: g('op'), partida: g('partida'), enderecos: g('enderecos'), status: g('status'), savedAt: Date.now(), rolos: [] }; f.items.push(it); }
-    it.rolos.push({ rg: g('rg'), endereco: g('endereco'), armazem: g('armazem'), peso: pn(g('peso')), gramatura: pn(g('gramatura')), cmc: pn(g('cmc')), picked: /^(sim|s|1|true)$/i.test(g('pego')), pickedBy: g('pego_por'), pesoBaixa: pn(g('peso_baixa')), mc: g('mc') });
+    it.rolos.push({ rg: g('rg'), endereco: g('endereco'), armazem: g('armazem'), peso: pn(g('peso')), gramatura: pn(g('gramatura')), cmc: pn(g('cmc')), picked: /^(sim|s|1|true)$/i.test(g('pego')), pickedBy: g('pego_por'), pesoBaixa: pn(g('peso_baixa')), mc: g('mc'), baixado: /^(sim|s|1|true)$/i.test(g('baixado')) });
     nRolls++;
   });
   return { folders: [...folders.values()], nRolls };

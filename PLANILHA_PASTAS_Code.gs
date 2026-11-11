@@ -22,7 +22,8 @@ const DEFECT_OPTIONS = ['BARRAMENTO', 'QUEBRADURA', 'MANCHAS', 'SUJA', 'OUTROS']
 const HP = ['id', 'nome', 'criada_em', 'criada_por'];
 const HR = ['pasta_id', 'pasta', 'item_key', 'produto', 'descricao', 'op', 'partida', 'enderecos', 'status',
             'rg', 'endereco', 'armazem', 'peso', 'gramatura', 'cmc', 'pego', 'pego_por', 'pego_em', 'salvo_por', 'salvo_em',
-            'peso_baixa', 'mc'];   // peso_baixa/mc: baixa a fazer no RG coletado (Peso Total e MC)
+            'peso_baixa', 'mc',              // baixa a fazer no RG coletado (Peso Total e MC)
+            'baixado', 'baixado_por', 'baixado_em'];   // baixa já efetuada no Protheus
 const C = HR.reduce((o, h, i) => (o[h] = i, o), {});
 
 function doGet(e) { return handle_((e && e.parameter) || {}); }
@@ -57,6 +58,7 @@ function handle_(b) {
       else if (a === 'saveItem') saveItem_(b.folderId, b.item, user);
       else if (a === 'removeItem') removeItem_(b.folderId, b.itemKey);
       else if (a === 'clearItems') clearItems_(b.folderId, !!b.onlyPicked);
+      else if (a === 'setBaixado') setBaixado_(b.folderId, b.itemKey, b.rg, b.endereco, !!b.baixado, user);
       else if (a === 'setPicked') setPicked_(b.folderId, b.itemKey, b.rg, b.endereco, !!b.picked, user, b.pesoBaixa, b.mc);
       else return out_({ ok: false, error: 'Ação desconhecida: ' + a });
       SpreadsheetApp.flush();
@@ -118,7 +120,8 @@ function list_() {
     const num = v => (v === '' ? null : Number(String(v).replace(',', '.')));
     it.rolos.push({ rg: x[C.rg], endereco: x[C.endereco], armazem: x[C.armazem], peso: num(x[C.peso]), gramatura: num(x[C.gramatura]), cmc: num(x[C.cmc]),
       picked: x[C.pego] === 'sim', pickedBy: x[C.pego_por], pickedAt: Date.parse(x[C.pego_em]) || null,
-      pesoBaixa: num(x[C.peso_baixa]), mc: x[C.mc] || '' });
+      pesoBaixa: num(x[C.peso_baixa]), mc: x[C.mc] || '',
+      baixado: x[C.baixado] === 'sim', baixadoBy: x[C.baixado_por], baixadoAt: Date.parse(x[C.baixado_em]) || null });
   });
   folders.forEach(f => { f.updatedAt = Math.max(f.createdAt, ...f.items.map(i => i.savedAt), ...f.items.flatMap(i => i.rolos.map(r => r.pickedAt || 0))); });
   return folders;
@@ -167,6 +170,8 @@ function saveItem_(folderId, item, user) {
     row[C.salvo_por] = user; row[C.salvo_em] = t;
     row[C.peso_baixa] = picked ? (o && o[C.peso_baixa] ? o[C.peso_baixa] : s_(r.pesoBaixa)) : '';
     row[C.mc] = picked ? (o && o[C.mc] ? o[C.mc] : s_(r.mc)) : '';
+    const bx = picked && o && o[C.baixado] === 'sim';
+    row[C.baixado] = bx ? 'sim' : ''; row[C.baixado_por] = bx ? o[C.baixado_por] : ''; row[C.baixado_em] = bx ? o[C.baixado_em] : '';
     keep.push(row);
   });
   rewrite_(sr, HR.length, keep);
@@ -191,6 +196,14 @@ function setPicked_(folderId, key, rg, endereco, picked, user, pesoBaixa, mc) {
   // quem pegou e quando ficam os da primeira marcação; a baixa (peso/MC) pode ser corrigida depois
   sr.getRange(i + 2, C.pego + 1, 1, 3).setNumberFormat('@').setValues([[picked ? 'sim' : 'nao', picked ? (already ? old[C.pego_por] : user) : '', picked ? (already ? old[C.pego_em] : now_()) : '']]);
   sr.getRange(i + 2, C.peso_baixa + 1, 1, 2).setNumberFormat('@').setValues([[picked ? s_(pesoBaixa).replace('.', ',') : '', picked ? s_(mc).slice(0, 30) : '']]);
+  if (!picked) sr.getRange(i + 2, C.baixado + 1, 1, 3).setNumberFormat('@').setValues([['', '', '']]);
+}
+// caixa "baixa efetuada": marca que a baixa do RG já foi feita no Protheus
+function setBaixado_(folderId, key, rg, endereco, baixado, user) {
+  const sr = sheet_(SH_R, HR), all = rows_(sr, HR.length);
+  const i = all.findIndex(x => x[C.pasta_id] === folderId && x[C.item_key] === key && x[C.rg] === s_(rg) && x[C.endereco] === s_(endereco));
+  if (i < 0) throw new Error('Rolo não encontrado na pasta (a OP pode ter sido atualizada por outro usuário). Toque em Atualizar.');
+  sr.getRange(i + 2, C.baixado + 1, 1, 3).setNumberFormat('@').setValues([[baixado ? 'sim' : '', baixado ? user : '', baixado ? now_() : '']]);
 }
 
 /* ---------------- malhas com defeito (aba Defeitos) ---------------- */
