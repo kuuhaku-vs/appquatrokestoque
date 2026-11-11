@@ -415,7 +415,13 @@ async function handle(path, options = {}) {
     return { ok: true, username, remembered: remember, savedOnDisk: true };
   }
   if (p.endsWith('/api/logout')) { clearAuth(); return { ok: true }; }
-  if (p.endsWith('/api/network')) return { lan: false, urls: [], interfaces: [] };
+  if (p.endsWith('/api/network')) {
+    // aberto pelo NOVA.exe: ele informa os endereços deste computador na rede (para o celular no mesmo Wi-Fi)
+    if (location.protocol === 'http:' && location.port === '47820') {
+      try { const r = await fetch('/__nova/network', { cache: 'no-store' }); if (r.ok) return await r.json(); } catch { /* NOVA.exe antigo */ }
+    }
+    return { lan: false, urls: [], interfaces: [] };
+  }
 
   if (p.endsWith('/api/priority/open')) {
     const rows = LS.get(RULES_KEY, []);
