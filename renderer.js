@@ -1192,7 +1192,9 @@ function maskPeso(v) {
   return (Number(dg) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function onPesoInput(e) {
+  if (e.isComposing) return;   // teclado ainda montando o texto: formata no fim
   const el = e.target, out = maskPeso(el.value);
+  if (el.value === out) return;
   el.value = out;
   try { el.setSelectionRange(out.length, out.length); } catch { /* alguns teclados não deixam mover o cursor */ }
 }
@@ -1201,6 +1203,8 @@ function baixaError(t) { $('baixaError').textContent = t || ''; $('baixaError').
 async function saveBaixa(e) {
   if (e) e.preventDefault();
   if (!baixaCtx) return;
+  // o peso é sempre lido pelos números digitados, em centésimos (8 = 0,08 · 80 = 0,80 · 180 = 1,80), qualquer que seja o teclado
+  $('baixaPeso').value = maskPeso($('baixaPeso').value);
   const pesoRaw = $('baixaPeso').value.trim(), peso = pesoRaw ? parseNumber(pesoRaw) : null, mcRaw = $('baixaMc').value.trim();
   if (pesoRaw && (peso === null || peso <= 0)) { baixaError('O Peso Total precisa ser um número maior que zero (ex.: 18,75).'); return $('baixaPeso').focus(); }
   if (peso !== null && peso > 9999) { baixaError('Peso Total muito alto. Confira o valor.'); return $('baixaPeso').focus(); }
@@ -1894,7 +1898,7 @@ $('folderBack').onclick = openFolders;
 $('folderSearch').onclick = () => { closeFolders(); goSearch(); };
 $('folderClear').onclick = openClearBox;
 $('baixaForm').onsubmit = saveBaixa;
-$('baixaPeso').addEventListener('input', onPesoInput);
+['input', 'keyup', 'change', 'blur', 'compositionend'].forEach(ev => $('baixaPeso').addEventListener(ev, onPesoInput));
 $('closeBaixa').onclick = $('baixaCancel').onclick = $('baixaCancel1').onclick = closeBaixa;
 $('baixaConfirm').onclick = confirmPickedRg;
 $('baixaUnpick').onclick = unpickBaixa;
