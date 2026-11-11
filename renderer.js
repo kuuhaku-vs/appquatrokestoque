@@ -97,10 +97,17 @@ function setTheme(t) {
   b.textContent = dark ? '☀ Tema claro' : '☾ Tema escuro';
   b.setAttribute('aria-label', dark ? 'Mudar para o tema claro' : 'Mudar para o tema escuro');
   $('themeToggle2').textContent = dark ? '☀' : '☾';
+  $('navThemeIcon').textContent = dark ? '☀' : '☾';
+  $('navThemeLabel').textContent = dark ? 'Claro' : 'Escuro';
 }
 
 /* ------------------------------ celular ------------------------------ */
 const IS_THIS_PC = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
+// aberto pelo NOVA.exe: avisa que a janela continua aberta; fechando todas, o NOVA.exe se encerra sozinho
+if (location.protocol === 'http:' && location.port === '47820') {
+  const novaPing = () => fetch('/__nova/ping', { cache: 'no-store' }).catch(() => {});
+  novaPing(); setInterval(novaPing, 20000);
+}
 let qrLibP = null;
 function loadQrLib() {
   if (window.QRCode) return Promise.resolve();
@@ -629,6 +636,8 @@ function updateFolderUi() {
   if (f) $('activeFolderName').textContent = f.name;
   $('foldersBtn2Label').textContent = f ? f.name : 'Pastas';
   $('foldersBtn2').classList.toggle('active', !!f);
+  $('navFoldersLabel').textContent = f ? f.name : 'Pastas';
+  $('navFolderDot').classList.toggle('hidden', !f);
   const h = document.querySelector('#codeForm h1');
   if (h) h.textContent = f ? 'Qual código deseja procurar?' : 'Consultar Material';
   updateSaveBtn();
@@ -810,6 +819,7 @@ async function createFolder(name) {
 async function openFolder(id) {
   if (folderOpenId !== id) folderOpenOps.clear();
   folderOpenId = id;
+  closeClearBox();
   $('foldersList').classList.add('hidden'); $('folderView').classList.remove('hidden');
   $('foldersModal').classList.remove('hidden');
   renderFolder();
@@ -823,6 +833,43 @@ async function deleteFolderAction() {
     async () => { await remote('deleteFolder', { folderId: f.id }); if (lsGet(FACTIVE_KEY, null) === f.id) setActive(null); },
     () => { d.folders = d.folders.filter(x => x.id !== f.id); if (d.active === f.id) d.active = null; return writeFolders(d); });
   if (ok) { openFolders(); message(`Pasta "${f.name}" excluída.`, 'info'); }
+}
+// Limpar pasta: tira as OPs já pegas (separação concluída) ou esvazia a pasta toda, sem excluir a pasta.
+function openClearBox() {
+  const f = folderById(readFolders(), folderOpenId); if (!f) return;
+  const box = $('folderClearBox');
+  if (!box.classList.contains('hidden')) return closeClearBox();
+  const s = opStats(f);
+  if (!s.ops) return message('A pasta já está vazia.', 'info');
+  $('folderClearInfo').textContent = `A pasta "${f.name}" tem ${s.ops} OP(s): ${s.done} já pega(s) e ${s.todo} a pegar. A pasta continua existindo, só as OPs saem dela${isShared() ? ' (para todos os usuários)' : ''}.`;
+  $('folderClearDone').textContent = `✓ Tirar só as OPs já pegas (${s.done})`;
+  $('folderClearDone').disabled = !s.done;
+  $('folderClearAll').textContent = `🧹 Esvaziar a pasta inteira (${s.ops})`;
+  box.classList.remove('hidden');
+  box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function closeClearBox() { $('folderClearBox').classList.add('hidden'); }
+async function clearFolderAction(onlyPicked) {
+  const f = folderById(readFolders(), folderOpenId); if (!f) return;
+  const keys = f.items.filter(it => !onlyPicked || opPicked(it).length).map(it => it.key);
+  if (!keys.length) { closeClearBox(); return message(onlyPicked ? 'Nenhuma OP pega para tirar.' : 'A pasta já está vazia.', 'info'); }
+  const what = onlyPicked ? `as ${keys.length} OP(s) já pegas` : `TODAS as ${keys.length} OP(s)`;
+  if (!confirm(`Tirar ${what} da pasta "${f.name}"?${isShared() ? '\n\nA mudança vale para TODOS os usuários.' : ''}\n\nIsso não pode ser desfeito (exporte a planilha antes, se quiser guardar).`)) return;
+  closeClearBox();
+  const btns = ['folderClear', 'folderClearDone', 'folderClearAll'].map($); btns.forEach(b => { b.disabled = true; });
+  const ok = await folderOp(
+    async () => {
+      try { await remote('clearItems', { folderId: f.id, onlyPicked: !!onlyPicked, itemKeys: keys }); }
+      catch (e) {
+        if (!/desconhecida/i.test(e.message)) throw e;
+        // script antigo na planilha (sem "clearItems"): tira uma OP por vez
+        for (const k of keys) await remote('removeItem', { folderId: f.id, itemKey: k });
+      }
+    },
+    () => { const d = readFolders(), ff = folderById(d, f.id); if (!ff) return false; const set = new Set(keys); ff.items = ff.items.filter(it => !set.has(it.key)); ff.updatedAt = Date.now(); return writeFolders(d); });
+  btns.forEach(b => { b.disabled = false; });
+  keys.forEach(k => folderOpenOps.delete(k));
+  if (ok) { updateSaveBtn(); message(`${keys.length} OP(s) tirada(s) da pasta "${f.name}".`, 'success'); }
 }
 // Pasta: uma linha por OP (caixa + OP/partida + endereços). Tocar abre a seleção de RG logo abaixo.
 // A OP conta como "pega" quando tem pelo menos 1 RG marcado (normalmente basta uma malha).
@@ -881,14 +928,15 @@ function opRow(f, it) {
   const ad = document.createElement('small'); ad.textContent = (bad ? '✕ ' + it.status.replace(/^DEFEITO:\s*/, '') + ' · ' : '') + (it.enderecos ? it.enderecos.split(' - ').join(' · ') : 'sem endereço');
   main.append(op, ad);
   const side = document.createElement('span'); side.className = 'fo-side';
-  side.textContent = picked.length ? picked.map(r => r.rg).join(', ') : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
+  const baixaKg = picked.reduce((t, r) => t + (Number(r.pesoBaixa) || 0), 0);
+  side.textContent = picked.length ? picked.map(r => r.rg).join(', ') + (baixaKg ? ` · ${fmtNum(baixaKg, 2)} kg` : '') : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
   const chev = document.createElement('span'); chev.className = 'fo-chev'; chev.textContent = '›';
   row.append(box, main, side, chev);
   row.onclick = () => { open ? folderOpenOps.delete(it.key) : folderOpenOps.add(it.key); renderFolder(); };
   wrap.append(row);
   if (open) {
     const panel = document.createElement('div'); panel.className = 'fo-panel';
-    const hint = document.createElement('p'); hint.className = 'fo-hint'; hint.textContent = 'Toque no RG que você pegou:';
+    const hint = document.createElement('p'); hint.className = 'fo-hint'; hint.textContent = 'Toque no RG que você pegou e informe o Peso Total e o MC da baixa:';
     const grid = document.createElement('div'); grid.className = 'rg-grid';
     it.rolos.forEach(r => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'rg-chip' + (r.picked ? ' on' : '');
@@ -896,7 +944,15 @@ function opRow(f, it) {
       const a = document.createElement('b'); a.textContent = (r.picked ? '✓ ' : '') + (r.rg || '—');
       const m = document.createElement('small'); m.textContent = [r.endereco, r.peso !== null && r.peso !== undefined ? fmtNum(r.peso, 2) + ' kg' : ''].filter(Boolean).join(' · ') + (r.picked && r.pickedBy ? ' · ' + r.pickedBy : '');
       b.append(a, m);
-      b.onclick = () => togglePicked(f.id, it.key, r, !r.picked);
+      if (r.picked) {
+        const bx = document.createElement('span'); bx.className = 'rg-baixa';
+        const hasPeso = r.pesoBaixa !== null && r.pesoBaixa !== undefined && r.pesoBaixa !== '';
+        const parts = [hasPeso ? `${fmtNum(Number(r.pesoBaixa), 2)} kg` : '', r.mc ? `MC ${r.mc}` : ''].filter(Boolean);
+        bx.textContent = parts.length ? `Baixa: ${parts.join(' · ')}` : 'Baixa: não informada';
+        bx.classList.toggle('missing', !parts.length);
+        b.append(bx);
+      }
+      b.onclick = () => openBaixa(f.id, it, r);
       grid.append(b);
     });
     const foot = document.createElement('div'); foot.className = 'fo-foot';
@@ -909,13 +965,57 @@ function opRow(f, it) {
   }
   return wrap;
 }
+// Baixa do RG coletado: ao tocar no RG, informa o Peso Total e o MC que devem ser baixados dele.
+let baixaCtx = null;
+function openBaixa(folderId, it, r) {
+  baixaCtx = { folderId, key: it.key, r };
+  $('baixaTitle').textContent = `RG ${r.rg || '—'}`;
+  $('baixaSub').textContent = `OP ${it.op || '—'} · Partida ${it.partida || '—'} · ${r.endereco || 'sem endereço'}`;
+  const has = r.picked && r.pesoBaixa !== null && r.pesoBaixa !== undefined && r.pesoBaixa !== '';
+  $('baixaPeso').value = has ? fmtNum(Number(r.pesoBaixa), 2) : '';   // vem vazio: digita só o que vai baixar
+  $('baixaMc').value = r.picked ? (r.mc || '') : '';
+  $('baixaHint').textContent = r.peso !== null && r.peso !== undefined
+    ? `Só para conferir: o rolo tem ${fmtNum(r.peso, 2)} kg no estoque.${r.picked && r.pickedBy ? ' Pego por ' + r.pickedBy + '.' : ''}`
+    : (r.picked && r.pickedBy ? `Pego por ${r.pickedBy}.` : '');
+  $('baixaUnpick').classList.toggle('hidden', !r.picked);
+  $('baixaSave').textContent = r.picked ? '✓ Atualizar baixa' : '✓ Marcar como pego';
+  baixaError('');
+  $('baixaModal').classList.remove('hidden');
+  setTimeout(() => { $('baixaPeso').focus(); $('baixaPeso').select(); }, 60);
+}
+function closeBaixa() { $('baixaModal').classList.add('hidden'); baixaCtx = null; }
+function baixaError(t) { $('baixaError').textContent = t || ''; $('baixaError').classList.toggle('hidden', !t); }
+async function saveBaixa(e) {
+  if (e) e.preventDefault();
+  if (!baixaCtx) return;
+  const pesoRaw = $('baixaPeso').value.trim(), peso = pesoRaw ? parseNumber(pesoRaw) : null, mcRaw = $('baixaMc').value.trim();
+  if (pesoRaw && (peso === null || peso <= 0)) { baixaError('O Peso Total precisa ser um número maior que zero (ex.: 18,75).'); return $('baixaPeso').focus(); }
+  if (peso !== null && peso > 9999) { baixaError('Peso Total muito alto. Confira o valor.'); return $('baixaPeso').focus(); }
+  const mcNum = mcRaw ? parseNumber(mcRaw) : null;
+  if (mcRaw && mcNum === null) { baixaError('O MC precisa ser um número (ex.: 1,25).'); return $('baixaMc').focus(); }
+  const { folderId, key, r } = baixaCtx; closeBaixa();
+  await togglePicked(folderId, key, r, true, { pesoBaixa: peso === null ? null : Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 0, 3) : '' });
+}
+async function unpickBaixa() {
+  if (!baixaCtx) return;
+  const { folderId, key, r } = baixaCtx; closeBaixa();
+  await togglePicked(folderId, key, r, false);
+}
 // marca/desmarca o RG: muda na hora na tela e grava (planilha ou aparelho); se falhar, volta
-async function togglePicked(folderId, key, r, picked) {
-  const apply = d => { const f = folderById(d, folderId), it = f && f.items.find(x => x.key === key), rr = it && it.rolos.find(x => x.rg === r.rg && x.endereco === r.endereco); if (rr) { rr.picked = picked; rr.pickedAt = picked ? Date.now() : null; rr.pickedBy = picked ? (currentUser || '') : ''; } return f; };
+async function togglePicked(folderId, key, r, picked, baixa = {}) {
+  const pesoBaixa = picked && baixa.pesoBaixa !== undefined ? baixa.pesoBaixa : null, mc = picked ? String(baixa.mc || '') : '';
+  const apply = d => { const f = folderById(d, folderId), it = f && f.items.find(x => x.key === key), rr = it && it.rolos.find(x => x.rg === r.rg && x.endereco === r.endereco);
+    if (rr) { const was = !!rr.picked; rr.picked = picked; rr.pickedAt = picked ? (was ? rr.pickedAt : Date.now()) : null; rr.pickedBy = picked ? (was && rr.pickedBy ? rr.pickedBy : (currentUser || '')) : ''; rr.pesoBaixa = pesoBaixa; rr.mc = mc; }
+    return f; };
   if (isShared()) {
     const c = lsGet(FCACHE_KEY, { folders: [] }); apply(c); lsSet(FCACHE_KEY, c); renderFolder();
     folderBusy = true;
-    try { await remote('setPicked', { folderId, itemKey: key, rg: r.rg, endereco: r.endereco, picked }); }
+    try {
+      const j = await remote('setPicked', { folderId, itemKey: key, rg: r.rg, endereco: r.endereco, picked, pesoBaixa, mc });
+      // script antigo na planilha: marca o "pego", mas não guarda Peso Total / MC
+      const back = picked && (j.folders || []).flatMap(f => f.items).flatMap(i => i.rolos).find(x => x.rg === r.rg && x.endereco === r.endereco);
+      if (back && !('pesoBaixa' in back)) message('O RG foi marcado como pego, mas a planilha da equipe está com o script antigo e não guardou o Peso Total / MC. Atualize o PLANILHA_PASTAS_Code.gs no Apps Script (veja o README).', 'error');
+    }
     catch (e) { message(`${e.message} A marcação não foi gravada.`, 'error'); await syncFolders(true); }
     finally { folderBusy = false; rerenderFolders(); }
   } else {
@@ -927,8 +1027,8 @@ function exportFolder() {
   const f = folderById(readFolders(), folderOpenId); if (!f) return;
   const q = v => { const t = String(v ?? '').replace(/[\r\n]+/g, ' '); return /[;"]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
   const num = v => (v === null || v === undefined || v === '') ? '' : String(v).replace('.', ',');
-  const lines = ['pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;pego_por;status'];
-  f.items.forEach(it => it.rolos.forEach(r => lines.push([f.name, it.produto, it.descricao, it.op, it.partida, it.enderecos, r.rg, r.endereco, r.armazem, num(r.peso), num(r.gramatura), num(r.cmc), r.picked ? 'sim' : 'nao', r.pickedBy || '', it.status].map(q).join(';'))));
+  const lines = ['pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;pego_por;status;peso_baixa;mc'];
+  f.items.forEach(it => it.rolos.forEach(r => lines.push([f.name, it.produto, it.descricao, it.op, it.partida, it.enderecos, r.rg, r.endereco, r.armazem, num(r.peso), num(r.gramatura), num(r.cmc), r.picked ? 'sim' : 'nao', r.pickedBy || '', it.status, r.picked ? num(r.pesoBaixa) : '', r.picked ? (r.mc || '') : ''].map(q).join(';'))));
   const blob = new Blob(['﻿' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `PASTA_${f.name.replace(/[^\w-]+/g, '_')}.csv`;
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
@@ -949,7 +1049,7 @@ function parseFoldersCsv(text) {
     const f = folders.get(lk), key = itemKey(g('produto'), g('op'), g('partida'));
     let it = f.items.find(x => x.key === key);
     if (!it) { it = { key, produto: g('produto').toUpperCase(), descricao: g('descricao'), op: g('op'), partida: g('partida'), enderecos: g('enderecos'), status: g('status'), savedAt: Date.now(), rolos: [] }; f.items.push(it); }
-    it.rolos.push({ rg: g('rg'), endereco: g('endereco'), armazem: g('armazem'), peso: pn(g('peso')), gramatura: pn(g('gramatura')), cmc: pn(g('cmc')), picked: /^(sim|s|1|true)$/i.test(g('pego')), pickedBy: g('pego_por') });
+    it.rolos.push({ rg: g('rg'), endereco: g('endereco'), armazem: g('armazem'), peso: pn(g('peso')), gramatura: pn(g('gramatura')), cmc: pn(g('cmc')), picked: /^(sim|s|1|true)$/i.test(g('pego')), pickedBy: g('pego_por'), pesoBaixa: pn(g('peso_baixa')), mc: g('mc') });
     nRolls++;
   });
   return { folders: [...folders.values()], nRolls };
@@ -1577,6 +1677,22 @@ $('newFolderForm').onsubmit = e => { e.preventDefault(); createFolder($('newFold
 $('closeFolders').onclick = $('closeFolders2').onclick = $('foldersClose2').onclick = closeFolders;
 $('folderBack').onclick = openFolders;
 $('folderSearch').onclick = () => { closeFolders(); goSearch(); };
+$('folderClear').onclick = openClearBox;
+$('baixaForm').onsubmit = saveBaixa;
+$('closeBaixa').onclick = $('baixaCancel').onclick = closeBaixa;
+$('baixaUnpick').onclick = unpickBaixa;
+$('baixaModal').addEventListener('mousedown', e => { if (e.target === $('baixaModal')) closeBaixa(); });
+// barra de navegação do celular
+$('navSearch').onclick = () => {
+  if (document.body.dataset.view === 'results') { goSearch(); }
+  const i = $('codeInput'); if (i) setTimeout(() => i.focus(), 50);
+};
+$('navFolders').onclick = () => openFolders();
+$('navHistory').onclick = () => openHistory();
+$('navTheme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+$('folderClearCancel').onclick = closeClearBox;
+$('folderClearDone').onclick = () => clearFolderAction(true);
+$('folderClearAll').onclick = () => clearFolderAction(false);
 $('folderExport').onclick = exportFolder;
 $('folderUse').onclick = () => { const d = readFolders(); d.active = folderOpenId; writeFolders(d); updateFolderUi(); renderFolder(); message('Pasta ativa: as próximas OPs salvas vão para ela.', 'success'); };
 $('folderDelete').onclick = deleteFolderAction;
@@ -1585,7 +1701,12 @@ $('foldersImport').onclick = () => $('foldersFile').click();
 $('foldersFile').onchange = async () => { const f = $('foldersFile').files[0]; $('foldersFile').value = ''; if (!f) return; try { const r = await importFolders(await f.text()); renderFoldersList(); updateFolderUi(); message(`Planilha importada: ${r.nRolls} rolo(s)${r.nFolders ? `, ${r.nFolders} pasta(s) nova(s)` : ''}.`, 'success'); } catch (e) { message(e.message, 'error'); } };
 $('foldersModal').addEventListener('mousedown', e => { if (e.target === $('foldersModal')) closeFolders(); });
 $('phoneBtn').classList.toggle('hidden', !IS_THIS_PC);
-$('phoneBtn').onclick = openPhone; $('closePhone').onclick = () => $('phoneModal').classList.add('hidden');
+$('phoneBtn').onclick = openPhone;
+// prévia: janela estreita (tamanho de celular) com o mesmo NOVA, para ver o layout do celular no computador
+$('phonePreview').onclick = () => {
+  const w = window.open(location.origin + location.pathname, 'novaCelular', 'popup=yes,width=414,height=880,left=80,top=40');
+  if (!w) message('O navegador bloqueou a janela. Permita pop-ups para o NOVA e tente de novo.', 'error');
+}; $('closePhone').onclick = () => $('phoneModal').classList.add('hidden');
 $('phoneModal').addEventListener('mousedown', e => { if (e.target === $('phoneModal')) $('phoneModal').classList.add('hidden'); });
 $('filterToggle').onclick = () => { const open = !$('stockSection').classList.contains('filters-open'); $('stockSection').classList.toggle('filters-open', open); $('filterToggle').setAttribute('aria-expanded', String(open)); $('filterToggle').textContent = open ? '⚲ Menos filtros' : '⚲ Mais filtros'; };
 $('defectBtn').onclick = () => { const g = currentGroups[groupIndex]; if (g) openDefect(g); };
@@ -1620,7 +1741,8 @@ $('dismissMessage').onclick = clearMessage;
 $('closeResults').onclick = goSearch;
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (!$('foldersModal').classList.contains('hidden')) closeFolders();
+  if (!$('baixaModal').classList.contains('hidden')) closeBaixa();
+  else if (!$('foldersModal').classList.contains('hidden')) closeFolders();
   else if (!$('phoneModal').classList.contains('hidden')) $('phoneModal').classList.add('hidden');
   else if (!$('defectModal').classList.contains('hidden')) closeDefect();
   else if (!$('groupModal').classList.contains('hidden')) closeGroup();

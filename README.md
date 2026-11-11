@@ -23,7 +23,9 @@ O celular consulta o Protheus pela internet (HTTPS), em qualquer rede: Wi-Fi 4K-
 1. Toque em **📁 Pastas**, dê um nome (ex.: `cartela`) e **Criar pasta**. A pasta fica **ativa** e o NOVA pergunta "Qual código deseja procurar?".
 2. Pesquise o código, abra a OP (**Exibir mais**) e toque em **💾 Salvar em cartela** (à esquerda de Indicar defeito). Salva a OP com todos os rolos; quando a OP está em mais de um endereço, eles ficam juntos, ex.: `08196 - 01023 - 04106`. Tocar de novo numa OP já salva permite atualizar os rolos ou tirar da pasta.
 3. Para buscar: **📁 Pastas → cartela**. Cada OP mostra os endereços e os rolos com uma caixinha: marque conforme for pegando (riscado em verde). **A pegar / Todos / Pegos** filtram a lista; a barra mostra o progresso.
-4. Com a **Planilha Google** conectada (abaixo), as pastas são **compartilhadas** entre todos os usuários; sem ela, ficam só no aparelho. **Exportar/Importar planilha** (CSV) continua disponível.
+4. **Baixa do RG**: ao tocar no RG que pegou, digite o **Peso Total (kg)** e/ou o **MC** que devem ser baixados (os campos vêm vazios) → **Marcar como pego**. Os valores aparecem no RG, entram na planilha da equipe (colunas `peso_baixa` e `mc` da aba Rolos) e no **Exportar planilha**. Tocar de novo no RG permite corrigir a baixa ou desmarcar. (Requer o `PLANILHA_PASTAS_Code.gs` atualizado; com o script antigo o RG é marcado, mas o peso/MC não ficam na planilha.)
+5. **🧹 Limpar** (dentro da pasta): tira só as OPs já pegas ou esvazia a pasta inteira, sem excluir a pasta. Com a planilha conectada, vale para todos (funciona melhor com o `PLANILHA_PASTAS_Code.gs` atualizado; com o script antigo, o NOVA tira uma OP por vez).
+6. Com a **Planilha Google** conectada (abaixo), as pastas são **compartilhadas** entre todos os usuários; sem ela, ficam só no aparelho. **Exportar/Importar planilha** (CSV) continua disponível.
 
 ## Pastas compartilhadas (Planilha Google) — configurar uma vez
 Sem isso, cada aparelho tem as suas pastas. Com isso, **todos os usuários e aparelhos veem as mesmas pastas e o mesmo "peguei"** (a lista se atualiza sozinha a cada 20 s).
@@ -37,6 +39,15 @@ Sem isso, cada aparelho tem as suas pastas. Com isso, **todos os usuários e apa
 - **Malhas com defeito também são compartilhadas**: com a planilha conectada, o que um usuário marca em ⚠ Indicar defeito aparece em vermelho para todos (aba Defeitos). Defeitos que estavam só no aparelho/computador: abra ⚠ Indicar defeito e toque em **⇪ Enviar defeitos deste aparelho para a planilha**.
 - **Atualizar o script** (quando vier versão nova): Apps Script → apague tudo → cole o novo `PLANILHA_PASTAS_Code.gs` → **coloque de novo o seu código em CHAVE** → Salvar → **Implantar → Gerenciar implantações → ✏️ → Versão: Nova versão → Implantar**. O URL continua o mesmo.
 - O código da equipe nunca fica no GitHub: só no Apps Script (privado) e em cada aparelho. Quem não tem o código não lê nem grava.
+
+## Abrir no computador (NOVA.exe)
+Dê dois cliques em **NOVA.exe** (fica nesta pasta, junto com o `index.html`). Ele abre o NOVA numa janela própria do Edge (ou Chrome), sem barra de endereço, e cria na Área de Trabalho o atalho **NOVA Local** com o ícone do NOVA.
+- Funciona só neste computador (endereço interno `http://127.0.0.1:47820`); quando a janela é fechada, o NOVA.exe se encerra sozinho.
+- Na primeira vez, entre com usuário/senha do Protheus e, em Pastas, digite o código da equipe (este "app" guarda os dados separado do navegador).
+- Se o Windows mostrar "O Windows protegeu o computador", clique em **Mais informações → Executar assim mesmo** (o arquivo não tem assinatura digital).
+- **Testar no celular**: na tela de pesquisa, clique em **📱 Usar no celular**. Com o celular no mesmo Wi-Fi, leia o código QR (ou digite o endereço `http://IP-DO-COMPUTADOR:47820`). Na primeira vez o Windows pergunta sobre o firewall: clique em **Permitir** em *Redes privadas*. Só aparelhos da rede interna conseguem abrir.
+- **Ver como celular no computador**: na mesma janela, **📱 Ver como celular neste computador** abre uma janela do tamanho de um celular.
+- Não precisa enviar o NOVA.exe para o GitHub.
 
 ## Como funciona nesta versão
 - Mesmas telas e regras do NOVA do computador: grupos por OP/Partida, prioridade (armazém 93 / AM01 / AM02, aprovado para amostra, CMC, entrada), punhos por OP, gramatura ideal da SBM (BM_GRAMTIN).

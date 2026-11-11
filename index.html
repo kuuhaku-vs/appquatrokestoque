@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="NOVA"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,11 +16,19 @@
 <button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
 <section id="message" class="message hidden" role="status" aria-live="polite"><span class="message-icon">i</span><span id="messageText"></span><button id="dismissMessage" type="button" aria-label="Fechar mensagem">×</button></section>
 
+<!-- barra de navegação do celular (só aparece em telas pequenas, depois do login) -->
+<nav id="mobileNav" class="mobile-nav" aria-label="Navegação">
+  <button type="button" id="navSearch" class="on"><span class="ni">🔍</span><span>Pesquisar</span></button>
+  <button type="button" id="navFolders"><span class="ni">📁<i id="navFolderDot" class="hidden"></i></span><span id="navFoldersLabel">Pastas</span></button>
+  <button type="button" id="navHistory"><span class="ni">🕘</span><span>Histórico</span></button>
+  <button type="button" id="navTheme"><span class="ni" id="navThemeIcon">☾</span><span id="navThemeLabel">Tema</span></button>
+</nav>
+
 <!-- 1) LOGIN -->
 <div id="loginView" class="screen center-screen hidden">
   <form id="loginForm" class="center-card login-card" autocomplete="on" novalidate>
     <span class="nova-fx nova-corner tl" aria-hidden="true"></span><span class="nova-fx nova-corner br" aria-hidden="true"></span><span class="nova-fx nova-ring" aria-hidden="true"></span><span class="nova-fx nova-core" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span>
-    <div class="card-brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
+    <div class="card-brand"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
     <h1>Entrar</h1>
     <p class="card-sub">Use seu usuário e senha do Protheus.</p>
     <div id="faceLogin" class="face-login hidden">
@@ -40,7 +49,7 @@
 <!-- 2) PESQUISA -->
 <div id="searchView" class="screen center-screen hidden">
   <div class="screen-top">
-    <div class="card-brand light"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
+    <div class="card-brand light"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
     <div class="top-actions"><button type="button" id="phoneBtn" class="secondary phone-btn hidden">📱 Usar no celular</button><div class="user-chip"><span class="user-dot" data-avatar>?</span><span data-user></span><button type="button" class="text-button logout-btn">Sair</button></div></div>
   </div>
   <form id="codeForm" class="center-card search-card" novalidate>
@@ -62,7 +71,7 @@
 <!-- 3) RESULTADO (endereços) -->
 <div id="resultsView" class="app-shell hidden">
   <header class="topbar">
-    <div class="brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
+    <div class="brand"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
     <form class="header-search" id="headerSearch" aria-label="Nova consulta" novalidate>
       <div class="search-input-wrap"><span>⌕</span><input id="term" maxlength="12" autocomplete="off" placeholder="Código do produto (12 caracteres)" spellcheck="false" aria-label="Código do produto"></div>
       <button id="searchBtn" class="primary search-btn" type="submit">Pesquisar <b>→</b></button>
@@ -178,6 +187,18 @@
     <div class="priority-actions"><button id="defectRemove" class="text-button danger hidden" type="button">Remover marcação</button><span class="spacer"></span><button id="defectCancel" class="text-button" type="button">Cancelar</button><button id="defectSave" class="primary danger-btn" type="button">Salvar na planilha</button></div>
   </div>
 </section>
+<section id="baixaModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="baixaTitle">
+  <form id="baixaForm" class="defect-modal baixa-modal" novalidate>
+    <div class="modal-heading"><div><span class="section-kicker baixa-kicker">BAIXA DO RG COLETADO</span><h2 id="baixaTitle">RG</h2><p id="baixaSub"></p></div><button id="closeBaixa" class="close-results" type="button" aria-label="Fechar">×</button></div>
+    <div class="baixa-fields">
+      <div class="field"><label for="baixaPeso">Peso Total (kg)</label><input id="baixaPeso" inputmode="decimal" autocomplete="off" placeholder="—" maxlength="12"></div>
+      <div class="field"><label for="baixaMc">MC</label><input id="baixaMc" inputmode="decimal" autocomplete="off" placeholder="—" maxlength="12"></div>
+    </div>
+    <p id="baixaHint" class="baixa-hint"></p>
+    <div id="baixaError" class="form-error hidden" role="alert"></div>
+    <div class="priority-actions"><button id="baixaUnpick" class="text-button danger hidden" type="button">Desmarcar (não peguei)</button><span class="spacer"></span><button id="baixaCancel" class="text-button" type="button">Cancelar</button><button id="baixaSave" class="primary" type="submit">✓ Salvar baixa</button></div>
+  </form>
+</section>
 <section id="phoneModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="phoneTitle">
   <div class="phone-modal">
     <div class="modal-heading"><div><span class="section-kicker">CELULAR</span><h2 id="phoneTitle">Usar o NOVA no celular</h2></div><button id="closePhone" class="close-results" type="button" aria-label="Fechar">×</button></div>
@@ -185,12 +206,13 @@
       <p class="phone-text">Com o celular no <b>mesmo Wi-Fi da empresa</b>, aponte a câmera para o código ou digite o endereço no navegador:</p>
       <div id="phoneQr" class="phone-qr"></div>
       <div id="phoneUrls" class="phone-urls"></div>
-      <ol class="phone-steps"><li>Entre com seu usuário do Protheus e marque <b>Mantenha-me conectado</b>.</li><li>Para virar um ícone: <b>Android/Chrome</b> ⋮ → <i>Adicionar à tela inicial</i>; <b>iPhone/Safari</b> ⎋ → <i>Adicionar à Tela de Início</i>.</li><li>Este computador precisa ficar ligado com a janela do NOVA aberta.</li></ol>
+      <ol class="phone-steps"><li>Entre com seu usuário do Protheus e marque <b>Mantenha-me conectado</b>.</li><li>Para virar um ícone: <b>Android/Chrome</b> ⋮ → <i>Adicionar à tela inicial</i>; <b>iPhone/Safari</b> ⎋ → <i>Adicionar à Tela de Início</i>.</li><li>Este computador precisa ficar ligado com a janela do NOVA aberta (NOVA.exe).</li></ol>
     </div>
     <div id="phoneOff" class="hidden">
-      <p class="phone-text">O NOVA está aberto só para este computador. Para liberar os celulares:</p>
-      <ol class="phone-steps"><li>Feche a janela preta do servidor do NOVA.</li><li>Abra <b>INICIAR_NOVA_REDE.bat</b> (em vez de INICIAR_NOVA.bat).</li><li>Se o Windows perguntar, clique em <b>Permitir</b> para <i>Redes privadas</i>.</li><li>Volte aqui em <b>📱 Usar no celular</b> para ver o código QR.</li></ol>
+      <p class="phone-text">O NOVA está aberto só para este computador. Para abrir no celular pelo Wi-Fi, abra o NOVA pelo <b>NOVA.exe</b> (atalho <b>NOVA Local</b>). Se o Windows perguntar, clique em <b>Permitir</b> para <i>Redes privadas</i>.</p>
+      <p class="phone-text">Também dá para publicar no GitHub Pages e abrir pelo endereço do site (veja o README).</p>
     </div>
+    <div class="phone-preview"><p class="phone-text"><b>Só quer ver como fica?</b> Abra uma janela do tamanho de um celular aqui no computador:</p><button id="phonePreview" class="secondary" type="button">📱 Ver como celular neste computador</button></div>
   </div>
 </section>
 <section id="foldersModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="foldersTitle">
@@ -206,7 +228,16 @@
     <div id="folderView" class="hidden">
       <div class="modal-heading"><div><button id="folderBack" class="link-btn back-link" type="button">← Pastas</button><h2 id="folderName"></h2><p id="folderSub"></p></div><button id="closeFolders2" class="close-results" type="button" aria-label="Fechar">×</button></div>
       <div class="folder-progress"><div id="folderBar"></div></div>
-      <div class="folder-tools"><div class="seg" role="group" aria-label="Mostrar"><button type="button" data-show="todo" class="on">A pegar</button><button type="button" data-show="all">Todas</button><button type="button" data-show="done">Pegas</button></div><button id="folderSearch" class="secondary" type="button">🔍 Pesquisar</button></div>
+      <div class="folder-tools"><div class="seg" role="group" aria-label="Mostrar"><button type="button" data-show="todo" class="on">A pegar</button><button type="button" data-show="all">Todas</button><button type="button" data-show="done">Pegas</button></div><div class="folder-tools-right"><button id="folderClear" class="secondary" type="button" title="Tirar OPs desta pasta">🧹 Limpar</button><button id="folderSearch" class="secondary" type="button">🔍 Pesquisar</button></div></div>
+      <div id="folderClearBox" class="clear-box hidden" role="group" aria-labelledby="folderClearTitle">
+        <b id="folderClearTitle">Limpar a pasta</b>
+        <p id="folderClearInfo"></p>
+        <div class="clear-actions">
+          <button id="folderClearDone" class="secondary" type="button">✓ Tirar só as OPs já pegas</button>
+          <button id="folderClearAll" class="danger-soft" type="button">🧹 Esvaziar a pasta inteira</button>
+          <button id="folderClearCancel" class="link-btn" type="button">Cancelar</button>
+        </div>
+      </div>
       <div id="folderBody" class="folder-body"></div>
       <div class="priority-actions"><button id="folderDelete" class="text-button danger" type="button">Excluir pasta</button><button id="folderExport" class="text-button" type="button">↓ Exportar planilha</button><span class="spacer"></span><button id="folderUse" class="secondary" type="button">Usar para salvar</button></div>
     </div>

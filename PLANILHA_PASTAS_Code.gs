@@ -21,7 +21,8 @@ const HD = ['produto', 'op', 'partida', 'defeitos', 'outros', 'observacao', 'usu
 const DEFECT_OPTIONS = ['BARRAMENTO', 'QUEBRADURA', 'MANCHAS', 'SUJA', 'OUTROS'];
 const HP = ['id', 'nome', 'criada_em', 'criada_por'];
 const HR = ['pasta_id', 'pasta', 'item_key', 'produto', 'descricao', 'op', 'partida', 'enderecos', 'status',
-            'rg', 'endereco', 'armazem', 'peso', 'gramatura', 'cmc', 'pego', 'pego_por', 'pego_em', 'salvo_por', 'salvo_em'];
+            'rg', 'endereco', 'armazem', 'peso', 'gramatura', 'cmc', 'pego', 'pego_por', 'pego_em', 'salvo_por', 'salvo_em',
+            'peso_baixa', 'mc'];   // peso_baixa/mc: baixa a fazer no RG coletado (Peso Total e MC)
 const C = HR.reduce((o, h, i) => (o[h] = i, o), {});
 
 function doGet(e) { return handle_((e && e.parameter) || {}); }
@@ -55,7 +56,8 @@ function handle_(b) {
       else if (a === 'deleteFolder') deleteFolder_(b.folderId);
       else if (a === 'saveItem') saveItem_(b.folderId, b.item, user);
       else if (a === 'removeItem') removeItem_(b.folderId, b.itemKey);
-      else if (a === 'setPicked') setPicked_(b.folderId, b.itemKey, b.rg, b.endereco, !!b.picked, user);
+      else if (a === 'clearItems') clearItems_(b.folderId, !!b.onlyPicked);
+      else if (a === 'setPicked') setPicked_(b.folderId, b.itemKey, b.rg, b.endereco, !!b.picked, user, b.pesoBaixa, b.mc);
       else return out_({ ok: false, error: 'Ação desconhecida: ' + a });
       SpreadsheetApp.flush();
       extra.ok = true; extra.folders = list_();
@@ -74,6 +76,10 @@ function sheet_(name, head) {
     sh = ss.insertSheet(name);
     sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
     sh.setFrozenRows(1);
+  } else if (sh.getMaxColumns() < head.length || sh.getRange(1, head.length).getDisplayValue() !== head[head.length - 1]) {
+    // aba criada por uma versão anterior: acrescenta as colunas novas no fim (os dados antigos ficam onde estão)
+    if (sh.getMaxColumns() < head.length) sh.insertColumnsAfter(sh.getMaxColumns(), head.length - sh.getMaxColumns());
+    sh.getRange(1, 1, 1, head.length).setValues([head]).setFontWeight('bold');
   }
   // texto puro: mantém zeros à esquerda de OP, partida, endereço, RG
   sh.getRange(1, 1, sh.getMaxRows(), head.length).setNumberFormat('@');
@@ -111,7 +117,8 @@ function list_() {
     }
     const num = v => (v === '' ? null : Number(String(v).replace(',', '.')));
     it.rolos.push({ rg: x[C.rg], endereco: x[C.endereco], armazem: x[C.armazem], peso: num(x[C.peso]), gramatura: num(x[C.gramatura]), cmc: num(x[C.cmc]),
-      picked: x[C.pego] === 'sim', pickedBy: x[C.pego_por], pickedAt: Date.parse(x[C.pego_em]) || null });
+      picked: x[C.pego] === 'sim', pickedBy: x[C.pego_por], pickedAt: Date.parse(x[C.pego_em]) || null,
+      pesoBaixa: num(x[C.peso_baixa]), mc: x[C.mc] || '' });
   });
   folders.forEach(f => { f.updatedAt = Math.max(f.createdAt, ...f.items.map(i => i.savedAt), ...f.items.flatMap(i => i.rolos.map(r => r.pickedAt || 0))); });
   return folders;
@@ -158,6 +165,8 @@ function saveItem_(folderId, item, user) {
     row[C.pego_por] = picked ? (o && o[C.pego] === 'sim' ? o[C.pego_por] : user) : '';
     row[C.pego_em] = picked ? (o && o[C.pego] === 'sim' ? o[C.pego_em] : t) : '';
     row[C.salvo_por] = user; row[C.salvo_em] = t;
+    row[C.peso_baixa] = picked ? (o && o[C.peso_baixa] ? o[C.peso_baixa] : s_(r.pesoBaixa)) : '';
+    row[C.mc] = picked ? (o && o[C.mc] ? o[C.mc] : s_(r.mc)) : '';
     keep.push(row);
   });
   rewrite_(sr, HR.length, keep);
@@ -166,11 +175,22 @@ function removeItem_(folderId, key) {
   const sr = sheet_(SH_R, HR);
   rewrite_(sr, HR.length, rows_(sr, HR.length).filter(x => !(x[C.pasta_id] === folderId && x[C.item_key] === key)));
 }
-function setPicked_(folderId, key, rg, endereco, picked, user) {
+// limpar pasta: tira as OPs já pegas (alguma linha com pego = sim) ou todas as OPs; a pasta continua existindo
+function clearItems_(folderId, onlyPicked) {
+  folderName_(folderId);
+  const sr = sheet_(SH_R, HR), all = rows_(sr, HR.length);
+  const pegos = {};
+  all.forEach(x => { if (x[C.pasta_id] === folderId && x[C.pego] === 'sim') pegos[x[C.item_key]] = true; });
+  rewrite_(sr, HR.length, all.filter(x => !(x[C.pasta_id] === folderId && (!onlyPicked || pegos[x[C.item_key]]))));
+}
+function setPicked_(folderId, key, rg, endereco, picked, user, pesoBaixa, mc) {
   const sr = sheet_(SH_R, HR), all = rows_(sr, HR.length);
   const i = all.findIndex(x => x[C.pasta_id] === folderId && x[C.item_key] === key && x[C.rg] === s_(rg) && x[C.endereco] === s_(endereco));
   if (i < 0) throw new Error('Rolo não encontrado na pasta (a OP pode ter sido atualizada por outro usuário). Toque em Atualizar.');
-  sr.getRange(i + 2, C.pego + 1, 1, 3).setNumberFormat('@').setValues([[picked ? 'sim' : 'nao', picked ? user : '', picked ? now_() : '']]);
+  const old = all[i], already = old[C.pego] === 'sim';
+  // quem pegou e quando ficam os da primeira marcação; a baixa (peso/MC) pode ser corrigida depois
+  sr.getRange(i + 2, C.pego + 1, 1, 3).setNumberFormat('@').setValues([[picked ? 'sim' : 'nao', picked ? (already ? old[C.pego_por] : user) : '', picked ? (already ? old[C.pego_em] : now_()) : '']]);
+  sr.getRange(i + 2, C.peso_baixa + 1, 1, 2).setNumberFormat('@').setValues([[picked ? s_(pesoBaixa).replace('.', ',') : '', picked ? s_(mc).slice(0, 30) : '']]);
 }
 
 /* ---------------- malhas com defeito (aba Defeitos) ---------------- */
