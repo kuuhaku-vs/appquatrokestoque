@@ -940,26 +940,30 @@ function renderBaixas(f, body) {
   acts.append(info, pr, cp); body.append(acts);
   const tbl = document.createElement('div'); tbl.className = 'bx-table';
   const head = document.createElement('div'); head.className = 'bx-row bx-head';
-  ['', 'RG', 'Produto (descrição)', 'Peso (kg)', 'MC'].forEach((x, k) => { const c = document.createElement('span'); c.textContent = x; if (!k) c.setAttribute('aria-label', 'Baixa efetuada'); head.append(c); });
+  ['', 'RG · Produto', 'Peso (kg)', 'MC', ''].forEach((x, k) => { const c = document.createElement('span'); c.textContent = x; if (!k) c.setAttribute('aria-label', 'Baixa efetuada'); if (k === 4) c.setAttribute('aria-label', 'Copiar RG'); head.append(c); });
   tbl.append(head);
   list.forEach(({ it, r }) => {
-    const row = document.createElement('div'); row.className = 'bx-row' + (r.baixado ? ' done' : '');
+    // linha inteira abre a correção do peso, menos a caixa de "baixa efetuada" e o botão de copiar
+    const row = document.createElement('div'); row.className = 'bx-row bx-item' + (r.baixado ? ' done' : '');
+    row.tabIndex = 0; row.setAttribute('role', 'button'); row.title = 'Toque para alterar o peso para baixa';
+    row.setAttribute('aria-label', `RG ${r.rg}, ${it.descricao || 'Produto'}, ${fmtNum(Number(r.pesoBaixa), 2)} kg. Alterar o peso para baixa`);
+    row.onclick = e => { if (e.target.closest('.bx-check, .bx-copyrg')) return; openBaixa(f.id, it, r); };
+    row.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); openBaixa(f.id, it, r); } };
     const ck = document.createElement('label'); ck.className = 'bx-check'; ck.title = 'Baixa efetuada';
     const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = !!r.baixado; inp.setAttribute('aria-label', `Baixa efetuada do RG ${r.rg}`);
     inp.onchange = () => setBaixado(f.id, it.key, r, inp.checked);
     ck.append(inp);
-    const c1 = document.createElement('span'); c1.className = 'bx-rgcell';
-    const rgBtn = document.createElement('button'); rgBtn.type = 'button'; rgBtn.className = 'bx-rg'; rgBtn.textContent = r.rg || '—'; rgBtn.title = 'Corrigir a baixa deste RG'; rgBtn.onclick = () => openBaixa(f.id, it, r);
-    const cpy = document.createElement('button'); cpy.type = 'button'; cpy.className = 'bx-copyrg'; cpy.textContent = '⧉'; cpy.title = `Copiar o RG ${r.rg}`; cpy.setAttribute('aria-label', `Copiar o RG ${r.rg}`);
-    cpy.onclick = () => copyRg(r.rg, cpy);
-    c1.append(rgBtn, cpy);
-    const c2 = document.createElement('span'); c2.className = 'bx-desc';
-    const dn = document.createElement('span'); dn.textContent = it.descricao || 'Produto';
-    const dc = document.createElement('small'); dc.textContent = it.produto + (r.baixado && r.baixadoBy ? ' · baixado por ' + r.baixadoBy : '');
-    c2.append(dn, dc);
+    // RG em cima; descrição e código embaixo, no mesmo estilo
+    const c1 = document.createElement('span'); c1.className = 'bx-main';
+    const rg = document.createElement('b'); rg.className = 'bx-rg'; rg.textContent = r.rg || '—';
+    const dn = document.createElement('small'); dn.className = 'bx-sub'; dn.textContent = it.descricao || 'Produto';
+    const dc = document.createElement('small'); dc.className = 'bx-sub'; dc.textContent = it.produto + (r.baixado && r.baixadoBy ? ' · baixado por ' + r.baixadoBy : '');
+    c1.append(rg, dn, dc);
     const c3 = document.createElement('strong'); c3.textContent = fmtNum(Number(r.pesoBaixa), 2);
     const c4 = document.createElement('strong'); c4.textContent = hasVal(r.mc) ? r.mc : '—';
-    row.append(ck, c1, c2, c3, c4);
+    const cpy = document.createElement('button'); cpy.type = 'button'; cpy.className = 'bx-copyrg'; cpy.textContent = '⧉'; cpy.title = `Copiar o RG ${r.rg}`; cpy.setAttribute('aria-label', `Copiar o RG ${r.rg}`);
+    cpy.onclick = e => { e.stopPropagation(); copyRg(r.rg, cpy); };
+    row.append(ck, c1, c3, c4, cpy);
     tbl.append(row);
   });
   body.append(tbl);
