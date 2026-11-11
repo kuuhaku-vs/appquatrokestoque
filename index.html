@@ -189,14 +189,23 @@
 </section>
 <section id="baixaModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="baixaTitle">
   <form id="baixaForm" class="defect-modal baixa-modal" novalidate>
-    <div class="modal-heading"><div><span class="section-kicker baixa-kicker">BAIXA DO RG COLETADO</span><h2 id="baixaTitle">RG</h2><p id="baixaSub"></p></div><button id="closeBaixa" class="close-results" type="button" aria-label="Fechar">×</button></div>
-    <div class="baixa-fields">
-      <div class="field"><label for="baixaPeso">Peso Total (kg)</label><input id="baixaPeso" inputmode="decimal" autocomplete="off" placeholder="—" maxlength="12"></div>
-      <div class="field"><label for="baixaMc">MC</label><input id="baixaMc" inputmode="decimal" autocomplete="off" placeholder="—" maxlength="12"></div>
+    <div class="modal-heading"><div><span id="baixaKicker" class="section-kicker baixa-kicker">BAIXA DO RG COLETADO</span><h2 id="baixaTitle">RG</h2><p id="baixaSub"></p></div><button id="closeBaixa" class="close-results" type="button" aria-label="Fechar">×</button></div>
+    <div id="baixaProduct" class="baixa-product"><span>PRODUTO</span><b id="baixaProdDesc"></b><small id="baixaProdInfo"></small></div>
+    <!-- etapa 1: confirmar o RG coletado (os outros RGs da OP saem da pasta) -->
+    <div id="baixaStep1" class="hidden">
+      <p id="baixaConfirmText" class="baixa-confirm"></p>
+      <div class="priority-actions"><span class="spacer"></span><button id="baixaCancel1" class="text-button" type="button">Cancelar</button><button id="baixaConfirm" class="primary" type="button">✓ Confirmar RG</button></div>
     </div>
-    <p id="baixaHint" class="baixa-hint"></p>
-    <div id="baixaError" class="form-error hidden" role="alert"></div>
-    <div class="priority-actions"><button id="baixaUnpick" class="text-button danger hidden" type="button">Desmarcar (não peguei)</button><span class="spacer"></span><button id="baixaCancel" class="text-button" type="button">Cancelar</button><button id="baixaSave" class="primary" type="submit">✓ Salvar baixa</button></div>
+    <!-- etapa 2: peso e MC para baixa -->
+    <div id="baixaStep2">
+      <div class="baixa-fields">
+        <div class="field"><label for="baixaPeso">Peso para baixa (kg)</label><input id="baixaPeso" inputmode="decimal" autocomplete="off" placeholder="—" maxlength="12"></div>
+        <div class="field"><label for="baixaMc">MC</label><input id="baixaMc" inputmode="decimal" autocomplete="off" placeholder="—" maxlength="12"></div>
+      </div>
+      <p id="baixaHint" class="baixa-hint"></p>
+      <div id="baixaError" class="form-error hidden" role="alert"></div>
+      <div class="priority-actions"><button id="baixaUnpick" class="text-button danger hidden" type="button">Desmarcar (não peguei)</button><span class="spacer"></span><button id="baixaCancel" class="text-button" type="button">Cancelar</button><button id="baixaSave" class="primary" type="submit">✓ Salvar baixa</button></div>
+    </div>
   </form>
 </section>
 <section id="phoneModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="phoneTitle">

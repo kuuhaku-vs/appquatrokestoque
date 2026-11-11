@@ -882,6 +882,7 @@ const sortItems = items => [...items].sort((a, b) => ptCmp(a.descricao || a.prod
 const sortRolos = rolos => [...rolos].sort((a, b) => ptCmp(a.rg, b.rg) || ptCmp(a.endereco, b.endereco));
 const pickedRolls = f => sortItems(f.items).flatMap(it => sortRolos(it.rolos).filter(r => r.picked).map(r => ({ it, r })));
 const hasVal = v => v !== null && v !== undefined && v !== '';
+const opHasBaixa = it => it.rolos.some(r => r.picked && hasVal(r.pesoBaixa));
 function folderSubText(f) { const s = opStats(f); return `${s.done} de ${s.ops} OP(s) pegas${isShared() ? ' · compartilhada' : ' · só neste aparelho'}`; }
 function renderFolder() {
   const d = readFolders(), f = folderById(d, folderOpenId);
@@ -892,9 +893,9 @@ function renderFolder() {
   $('folderBar').style.width = s.ops ? (s.done / s.ops * 100).toFixed(1) + '%' : '0%';
   $('folderUse').textContent = d.active === f.id ? '✓ Pasta ativa' : 'Usar para salvar';
   $('folderUse').disabled = d.active === f.id;
-  document.querySelectorAll('#folderView .seg button').forEach(b => {
+  document.querySelectorAll('#folderView .folder-tools .seg button').forEach(b => {
     b.classList.toggle('on', b.dataset.show === folderShow);
-    const n = b.dataset.show === 'todo' ? s.todo : b.dataset.show === 'done' ? s.done : b.dataset.show === 'baixas' ? baixaRolls(f).length : s.ops;
+    const n = b.dataset.show === 'todo' ? s.todo : b.dataset.show === 'done' ? f.items.filter(it => opPicked(it).length && !opHasBaixa(it)).length : b.dataset.show === 'baixas' ? baixaRolls(f).length : s.ops;
     b.textContent = `${{ todo: 'A pegar', all: 'Todas', done: 'Pegas', baixas: 'Baixas' }[b.dataset.show]} ${n}`;
   });
   const body = $('folderBody'); body.replaceChildren();
@@ -905,11 +906,11 @@ function renderFolder() {
   sortItems(f.items).forEach(it => {
     const has = opPicked(it).length > 0, keep = folderOpenOps.has(it.key); // OP aberta continua na tela até fechar
     if (folderShow === 'todo' && has && !keep) return;
-    if (folderShow === 'done' && !has && !keep) return;
+    if (folderShow === 'done' && (!has || opHasBaixa(it)) && !keep) return;
     if (!byProd.has(it.produto)) byProd.set(it.produto, []);
     byProd.get(it.produto).push(it);
   });
-  if (!byProd.size) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = folderShow === 'todo' ? '🎉 Todas as OPs desta pasta já foram pegas.' : 'Nenhuma OP pega ainda.'; body.append(e); return; }
+  if (!byProd.size) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = folderShow === 'todo' ? '🎉 Todas as OPs desta pasta já foram pegas.' : 'Nenhuma OP pega aguardando peso. As que já têm peso para baixa estão na aba Baixas.'; body.append(e); return; }
   byProd.forEach((items, prod) => {
     const sec = document.createElement('section'); sec.className = 'fp';
     const h = document.createElement('div'); h.className = 'fp-head';
@@ -958,6 +959,7 @@ function renderBaixas(f, body) {
     tbl.append(row);
   });
   body.append(tbl);
+  if (printOptsFor === f.id) buildPrintOpts(f, body);
 }
 async function copyBaixas(f) {
   const list = baixaRolls(f);
@@ -970,6 +972,7 @@ async function copyBaixas(f) {
 // Opções: retrato/paisagem e 1 ou 2 colunas; no automático, divide em 2 colunas e diminui a letra
 // para caber tudo numa página (se ainda assim não couber, continua na página seguinte).
 const PRINT_KEY = 'nova_print_baixas';
+let printOptsFor = null;   // pasta com o painel de impressão aberto (continua aberto quando a lista se atualiza sozinha)
 const printPrefs = () => Object.assign({ orient: 'portrait', cols: 'auto' }, lsGet(PRINT_KEY, {}) || {});
 function printPlan(n, prefs) {
   const avail = prefs.orient === 'landscape' ? 145 : 232;   // mm livres para as linhas (A4, tirando margens, cabeçalho e rodapé)
@@ -978,11 +981,16 @@ function printPlan(n, prefs) {
   const perCol = Math.max(1, Math.ceil(n / cols));
   const rh = Math.max(MIN, Math.min(ROW, avail / perCol));
   const pages = Math.max(1, Math.ceil(perCol / Math.floor(avail / rh)));
-  return { cols, perCol, rh, pages, fs: rh >= 8 ? 11 : rh >= 6.6 ? 10 : rh >= 5.6 ? 9 : 8, showCode: rh >= 7 };
+  return { cols, perCol, rh, pages, fs: rh >= 8 ? 11.5 : rh >= 6.6 ? 10.5 : rh >= 5.6 ? 9.5 : 9, showCode: cols === 1 && rh >= 7 };
 }
 function togglePrintOpts(f, body) {
-  let box = body.querySelector('.print-opts');
-  if (box) { box.remove(); return; }
+  const open = body.querySelector('.print-opts');
+  if (open) { open.remove(); printOptsFor = null; return; }
+  printOptsFor = f.id;
+  buildPrintOpts(f, body);
+}
+function buildPrintOpts(f, body) {
+  let box;
   const p = printPrefs(), n = baixaRolls(f).length;
   box = document.createElement('div'); box.className = 'print-opts';
   const title = document.createElement('b'); title.textContent = 'Imprimir baixas';
@@ -995,11 +1003,11 @@ function togglePrintOpts(f, body) {
     wrap.append(l, g); return wrap;
   };
   const hint = document.createElement('p'); hint.className = 'po-hint';
-  const info = () => { const pl = printPlan(n, p); hint.textContent = `${n} RG(s) · ${pl.cols === 2 ? '2 colunas' : '1 coluna'} · ${pl.pages === 1 ? 'cabe em 1 página' : pl.pages + ' páginas'}${pl.fs < 11 ? ' (letra menor)' : ''}.`; };
+  const info = () => { const pl = printPlan(n, p); hint.textContent = `${n} RG(s) · ${pl.cols === 2 ? '2 colunas' : '1 coluna'} · ${pl.pages === 1 ? 'cabe em 1 página' : pl.pages + ' páginas'}${pl.fs < 11.5 ? ' (letra menor)' : ''}.`; };
   const go = document.createElement('button'); go.type = 'button'; go.className = 'primary'; go.textContent = '🖨 Imprimir';
   go.onclick = () => printBaixas(f, p);
   const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'link-btn'; cancel.textContent = 'Fechar';
-  cancel.onclick = () => box.remove();
+  cancel.onclick = () => { box.remove(); printOptsFor = null; };
   const acts = document.createElement('div'); acts.className = 'po-acts'; acts.append(cancel, go);
   box.append(title, seg('Orientação', 'orient', [['portrait', 'Retrato'], ['landscape', 'Paisagem']]), seg('Colunas', 'cols', [['auto', 'Automático'], ['1', '1'], ['2', '2']]), hint, acts);
   info();
@@ -1016,7 +1024,7 @@ function printBaixas(f, prefs = printPrefs()) {
   const parts = []; for (let k = 0; k < plan.cols; k++) parts.push(list.slice(k * plan.perCol, (k + 1) * plan.perCol));
   let box = $('printBaixas');
   if (!box) { box = document.createElement('div'); box.id = 'printBaixas'; box.className = 'print-baixas'; document.body.append(box); }
-  box.className = `print-baixas cols-${plan.cols}`;
+  box.className = `print-baixas cols-${plan.cols}${plan.rh < 7 ? ' tight' : ''}`;
   box.style.setProperty('--rh', plan.rh.toFixed(2) + 'mm');
   box.style.setProperty('--fs', plan.fs + 'px');
   box.innerHTML = `<header><img src="logo-grupo4k.png" alt="Grupo Quatro K"><div><h1>Baixas de estoque</h1><p>Pasta <b>${esc(f.name)}</b> · ${esc(now)}${currentUser ? ' · ' + esc(currentUser) : ''}</p></div></header>
@@ -1071,7 +1079,9 @@ function opRow(f, it) {
     const panel = document.createElement('div'); panel.className = 'fo-panel';
     const hint = document.createElement('p'); hint.className = 'fo-hint'; hint.textContent = 'Toque no RG que você pegou e informe o Peso Total e o MC da baixa:';
     const grid = document.createElement('div'); grid.className = 'rg-grid';
-    sortRolos(it.rolos).forEach(r => {
+    const shown = picked.length ? sortRolos(picked) : sortRolos(it.rolos);   // depois de identificar o RG, fica só ele
+    if (picked.length) hint.textContent = picked.some(r => hasVal(r.pesoBaixa)) ? 'RG coletado (toque para corrigir a baixa):' : 'RG coletado. Toque nele para informar o peso da baixa:';
+    shown.forEach(r => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'rg-chip' + (r.picked ? ' on' : '');
       b.setAttribute('aria-pressed', String(!!r.picked));
       const a = document.createElement('b'); a.textContent = (r.picked ? '✓ ' : '') + (r.rg || '—');
@@ -1101,20 +1111,61 @@ function opRow(f, it) {
 // Baixa do RG coletado: ao tocar no RG, informa o Peso Total e o MC que devem ser baixados dele.
 let baixaCtx = null;
 function openBaixa(folderId, it, r) {
-  baixaCtx = { folderId, key: it.key, r };
+  baixaCtx = { folderId, key: it.key, r, it };
   $('baixaTitle').textContent = `RG ${r.rg || '—'}`;
   $('baixaSub').textContent = `OP ${it.op || '—'} · Partida ${it.partida || '—'} · ${r.endereco || 'sem endereço'}`;
-  const has = r.picked && r.pesoBaixa !== null && r.pesoBaixa !== undefined && r.pesoBaixa !== '';
-  $('baixaPeso').value = has ? fmtNum(Number(r.pesoBaixa), 2) : '';   // vem vazio: digita só o que vai baixar
-  $('baixaMc').value = r.picked ? (r.mc || '') : '';
-  $('baixaHint').textContent = r.peso !== null && r.peso !== undefined
-    ? `Só para conferir: o rolo tem ${fmtNum(r.peso, 2)} kg no estoque.${r.picked && r.pickedBy ? ' Pego por ' + r.pickedBy + '.' : ''}`
-    : (r.picked && r.pickedBy ? `Pego por ${r.pickedBy}.` : '');
-  $('baixaUnpick').classList.toggle('hidden', !r.picked);
-  $('baixaSave').textContent = r.picked ? '✓ Atualizar baixa' : '✓ Marcar como pego';
+  $('baixaProdDesc').textContent = it.descricao || 'Produto';
+  $('baixaProdInfo').textContent = [it.produto, r.peso !== null && r.peso !== undefined ? `rolo com ${fmtNum(r.peso, 2)} kg no estoque` : ''].filter(Boolean).join(' · ');
+  const others = it.rolos.filter(x => x !== r && !(x.rg === r.rg && x.endereco === r.endereco));
+  // RG ainda não confirmado e a OP tem outros RGs: primeiro confirma (os outros saem da pasta)
+  if (!r.picked && others.length) return baixaStep(1, others.length);
+  baixaStep(2);
+}
+function baixaStep(n, othersCount = 0) {
+  const { r } = baixaCtx;
   baixaError('');
+  $('baixaStep1').classList.toggle('hidden', n !== 1);
+  $('baixaStep2').classList.toggle('hidden', n !== 2);
+  if (n === 1) {
+    $('baixaKicker').textContent = 'CONFIRMAR RG COLETADO';
+    $('baixaConfirmText').textContent = `Você coletou o RG ${r.rg}? Ao confirmar, os outros ${othersCount} RG(s) desta OP serão apagados da pasta e fica só este.`;
+  } else {
+    $('baixaKicker').textContent = 'PESO PARA BAIXA';
+    const has = r.picked && hasVal(r.pesoBaixa);
+    $('baixaPeso').value = has ? fmtNum(Number(r.pesoBaixa), 2) : '';   // vem vazio: digita só o que vai baixar
+    $('baixaMc').value = r.picked ? (r.mc || '') : '';
+    $('baixaHint').textContent = 'Confira o produto acima e digite o peso que deve ser baixado deste RG. Com o peso, o RG vai para a aba Baixas.' + (r.picked && r.pickedBy ? ` Pego por ${r.pickedBy}.` : '');
+    $('baixaUnpick').classList.toggle('hidden', !r.picked);
+    $('baixaSave').textContent = has ? '✓ Atualizar baixa' : '✓ Salvar baixa';
+  }
   $('baixaModal').classList.remove('hidden');
-  setTimeout(() => { $('baixaPeso').focus(); $('baixaPeso').select(); }, 60);
+  setTimeout(() => (n === 1 ? $('baixaConfirm') : $('baixaPeso')).focus(), 60);
+}
+// etapa 1 confirmada: o RG fica pego e os outros RGs da OP saem da pasta (na planilha e no aparelho)
+async function confirmPickedRg() {
+  if (!baixaCtx) return;
+  const { folderId, key, r, it } = baixaCtx;
+  const btn = $('baixaConfirm'); btn.disabled = true;
+  const keepOnly = d => { const f = folderById(d, folderId), x = f && f.items.find(y => y.key === key); if (!x) return null;
+    const rr = x.rolos.find(y => y.rg === r.rg && y.endereco === r.endereco); if (!rr) return null;
+    rr.picked = true; rr.pickedAt = rr.pickedAt || Date.now(); rr.pickedBy = rr.pickedBy || currentUser || ''; x.rolos = [rr]; f.updatedAt = Date.now(); return rr; };
+  try {
+    if (isShared()) {
+      const c = lsGet(FCACHE_KEY, { folders: [] }); const rr = keepOnly(c); lsSet(FCACHE_KEY, c);
+      folderBusy = true;
+      try { await remote('saveItem', { folderId, item: { ...it, rolos: [{ ...r, picked: true }] } }); }
+      catch (e) { message(`${e.message} O RG não foi confirmado.`, 'error'); await syncFolders(true); closeBaixa(); return; }
+      finally { folderBusy = false; }
+      if (rr) baixaCtx.r = rr;
+    } else {
+      const d = readFolders(); const rr = keepOnly(d); writeFolders(d); if (rr) baixaCtx.r = rr;
+    }
+    rerenderFolders(); updateSaveBtn();
+    const f = folderById(readFolders(), folderId), x = f && f.items.find(y => y.key === key);
+    const rr = x && x.rolos.find(y => y.rg === r.rg && y.endereco === r.endereco);
+    if (rr) baixaCtx.r = rr;
+    baixaStep(2);
+  } finally { btn.disabled = false; }
 }
 function closeBaixa() { $('baixaModal').classList.add('hidden'); baixaCtx = null; }
 function baixaError(t) { $('baixaError').textContent = t || ''; $('baixaError').classList.toggle('hidden', !t); }
@@ -1127,7 +1178,9 @@ async function saveBaixa(e) {
   const mcNum = mcRaw ? parseNumber(mcRaw) : null;
   if (mcRaw && mcNum === null) { baixaError('O MC precisa ser um número (ex.: 1,25).'); return $('baixaMc').focus(); }
   const { folderId, key, r } = baixaCtx; closeBaixa();
+  if (peso !== null) folderOpenOps.delete(key);   // com peso: sai da aba Pegas e aparece em Baixas
   await togglePicked(folderId, key, r, true, { pesoBaixa: peso === null ? null : Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 0, 3) : '' });
+  if (peso !== null) message(`RG ${r.rg}: baixa de ${fmtNum(peso, 2)} kg salva. Está na aba Baixas.`, 'success');
 }
 async function unpickBaixa() {
   if (!baixaCtx) return;
@@ -1812,7 +1865,8 @@ $('folderBack').onclick = openFolders;
 $('folderSearch').onclick = () => { closeFolders(); goSearch(); };
 $('folderClear').onclick = openClearBox;
 $('baixaForm').onsubmit = saveBaixa;
-$('closeBaixa').onclick = $('baixaCancel').onclick = closeBaixa;
+$('closeBaixa').onclick = $('baixaCancel').onclick = $('baixaCancel1').onclick = closeBaixa;
+$('baixaConfirm').onclick = confirmPickedRg;
 $('baixaUnpick').onclick = unpickBaixa;
 $('baixaModal').addEventListener('mousedown', e => { if (e.target === $('baixaModal')) closeBaixa(); });
 // barra de navegação do celular
@@ -1829,7 +1883,7 @@ $('folderClearAll').onclick = () => clearFolderAction(false);
 $('folderExport').onclick = exportFolder;
 $('folderUse').onclick = () => { const d = readFolders(); d.active = folderOpenId; writeFolders(d); updateFolderUi(); renderFolder(); message('Pasta ativa: as próximas OPs salvas vão para ela.', 'success'); };
 $('folderDelete').onclick = deleteFolderAction;
-document.querySelectorAll('#folderView .seg button').forEach(b => { b.onclick = () => { folderShow = b.dataset.show; renderFolder(); }; });
+document.querySelectorAll('#folderView .folder-tools .seg button').forEach(b => { b.onclick = () => { folderShow = b.dataset.show; printOptsFor = null; renderFolder(); }; });
 $('foldersImport').onclick = () => $('foldersFile').click();
 $('foldersFile').onchange = async () => { const f = $('foldersFile').files[0]; $('foldersFile').value = ''; if (!f) return; try { const r = await importFolders(await f.text()); renderFoldersList(); updateFolderUi(); message(`Planilha importada: ${r.nRolls} rolo(s)${r.nFolders ? `, ${r.nFolders} pasta(s) nova(s)` : ''}.`, 'success'); } catch (e) { message(e.message, 'error'); } };
 $('foldersModal').addEventListener('mousedown', e => { if (e.target === $('foldersModal')) closeFolders(); });
