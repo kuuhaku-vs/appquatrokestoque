@@ -876,6 +876,12 @@ async function clearFolderAction(onlyPicked) {
 const folderOpenOps = new Set();
 const opPicked = it => it.rolos.filter(r => r.picked);
 function opStats(f) { const done = f.items.filter(it => opPicked(it).length).length; return { ops: f.items.length, done, todo: f.items.length - done }; }
+// ordem alfabética: descrição do item, depois código, OP e partida; RGs em ordem numérica
+const ptCmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
+const sortItems = items => [...items].sort((a, b) => ptCmp(a.descricao || a.produto, b.descricao || b.produto) || ptCmp(a.produto, b.produto) || ptCmp(a.op, b.op) || ptCmp(a.partida, b.partida));
+const sortRolos = rolos => [...rolos].sort((a, b) => ptCmp(a.rg, b.rg) || ptCmp(a.endereco, b.endereco));
+const pickedRolls = f => sortItems(f.items).flatMap(it => sortRolos(it.rolos).filter(r => r.picked).map(r => ({ it, r })));
+const hasVal = v => v !== null && v !== undefined && v !== '';
 function folderSubText(f) { const s = opStats(f); return `${s.done} de ${s.ops} OP(s) pegas${isShared() ? ' · compartilhada' : ' · só neste aparelho'}`; }
 function renderFolder() {
   const d = readFolders(), f = folderById(d, folderOpenId);
@@ -888,13 +894,15 @@ function renderFolder() {
   $('folderUse').disabled = d.active === f.id;
   document.querySelectorAll('#folderView .seg button').forEach(b => {
     b.classList.toggle('on', b.dataset.show === folderShow);
-    const n = b.dataset.show === 'todo' ? s.todo : b.dataset.show === 'done' ? s.done : s.ops;
-    b.textContent = `${{ todo: 'A pegar', all: 'Todas', done: 'Pegas' }[b.dataset.show]} ${n}`;
+    const n = b.dataset.show === 'todo' ? s.todo : b.dataset.show === 'done' ? s.done : b.dataset.show === 'baixas' ? pickedRolls(f).length : s.ops;
+    b.textContent = `${{ todo: 'A pegar', all: 'Todas', done: 'Pegas', baixas: 'Baixas' }[b.dataset.show]} ${n}`;
   });
   const body = $('folderBody'); body.replaceChildren();
+  body.classList.toggle('baixas-mode', folderShow === 'baixas');
   if (!f.items.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Pasta vazia. Toque em "Pesquisar código", abra a OP e use 💾 Salvar.'; body.append(e); return; }
+  if (folderShow === 'baixas') return renderBaixas(f, body);
   const byProd = new Map();
-  f.items.forEach(it => {
+  sortItems(f.items).forEach(it => {
     const has = opPicked(it).length > 0, keep = folderOpenOps.has(it.key); // OP aberta continua na tela até fechar
     if (folderShow === 'todo' && has && !keep) return;
     if (folderShow === 'done' && !has && !keep) return;
@@ -915,6 +923,64 @@ function renderFolder() {
     const list = document.createElement('div'); list.className = 'fp-list';
     items.forEach(it => list.append(opRow(f, it)));
     sec.append(list); body.append(sec);
+  });
+}
+// Aba "Baixas": cada RG pego, agrupado pela descrição do item, com o Peso Total e o MC a baixar.
+function renderBaixas(f, body) {
+  const list = pickedRolls(f);
+  if (!list.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Nenhum RG pego ainda. Marque os RGs em "A pegar" informando o Peso Total e o MC.'; body.append(e); return; }
+  const sumKg = a => a.reduce((t, x) => t + (hasVal(x.r.pesoBaixa) ? Number(x.r.pesoBaixa) : 0), 0);
+  const sumMc = a => a.reduce((t, x) => t + (hasVal(x.r.mc) ? (parseNumber(x.r.mc) || 0) : 0), 0);
+  const missing = list.filter(x => !hasVal(x.r.pesoBaixa) && !hasVal(x.r.mc)).length;
+  // resumo geral
+  const top = document.createElement('div'); top.className = 'bx-summary';
+  const cell = (label, value) => { const d = document.createElement('div'); const sp = document.createElement('span'); sp.textContent = label; const b = document.createElement('b'); b.textContent = value; d.append(sp, b); return d; };
+  top.append(cell('RGs', String(list.length)), cell('Peso Total', fmtNum(sumKg(list), 2) + ' kg'), cell('MC', fmtNum(sumMc(list), 0, 3)));
+  body.append(top);
+  if (missing) { const w = document.createElement('p'); w.className = 'bx-warn'; w.textContent = `⚠ ${missing} RG(s) pego(s) sem Peso Total nem MC. Toque no RG para informar.`; body.append(w); }
+  const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'secondary bx-copy'; copy.textContent = '📋 Copiar lista de baixas';
+  copy.onclick = async () => {
+    const lines = [`Baixas da pasta ${f.name}`];
+    let last = '';
+    list.forEach(({ it, r }) => {
+      const g = (it.descricao || it.produto) + ' (' + it.produto + ')';
+      if (g !== last) { lines.push('', g); last = g; }
+      lines.push(`RG ${r.rg} · OP ${it.op} · Peso ${hasVal(r.pesoBaixa) ? fmtNum(Number(r.pesoBaixa), 2) + ' kg' : '—'} · MC ${hasVal(r.mc) ? r.mc : '—'}`);
+    });
+    lines.push('', `Total: ${list.length} RG(s) · ${fmtNum(sumKg(list), 2)} kg · MC ${fmtNum(sumMc(list), 0, 3)}`);
+    try { await navigator.clipboard.writeText(lines.join('\n')); message('Lista de baixas copiada. Cole no WhatsApp, e-mail ou bloco de notas.', 'success'); }
+    catch { message('Não foi possível copiar neste navegador. Use ↓ Exportar planilha.', 'error'); }
+  };
+  body.append(copy);
+  // grupos por descrição (já em ordem alfabética)
+  const groups = new Map();
+  list.forEach(x => { const k = x.it.produto; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(x); });
+  groups.forEach((rows, prod) => {
+    const sec = document.createElement('section'); sec.className = 'fp bx-group';
+    const h = document.createElement('div'); h.className = 'fp-head';
+    const t = document.createElement('span');
+    const ds = document.createElement('strong'); ds.textContent = rows[0].it.descricao || 'Produto';
+    const code = document.createElement('b'); code.textContent = prod;
+    t.append(ds, code); h.append(t); sec.append(h);
+    const tbl = document.createElement('div'); tbl.className = 'bx-table';
+    const head = document.createElement('div'); head.className = 'bx-row bx-head';
+    ['RG', 'OP', 'Peso (kg)', 'MC'].forEach(x => { const c = document.createElement('span'); c.textContent = x; head.append(c); });
+    tbl.append(head);
+    rows.forEach(({ it, r }) => {
+      const row = document.createElement('button'); row.type = 'button'; row.className = 'bx-row' + (!hasVal(r.pesoBaixa) && !hasVal(r.mc) ? ' missing' : '');
+      row.title = 'Corrigir a baixa deste RG';
+      const c1 = document.createElement('b'); c1.textContent = r.rg || '—';
+      const c2 = document.createElement('span'); c2.textContent = it.op || '—';
+      const c3 = document.createElement('strong'); c3.textContent = hasVal(r.pesoBaixa) ? fmtNum(Number(r.pesoBaixa), 2) : '—';
+      const c4 = document.createElement('strong'); c4.textContent = hasVal(r.mc) ? r.mc : '—';
+      row.append(c1, c2, c3, c4);
+      row.onclick = () => openBaixa(f.id, it, r);
+      tbl.append(row);
+    });
+    const tot = document.createElement('div'); tot.className = 'bx-row bx-total';
+    [`${rows.length} RG(s)`, 'Total', fmtNum(sumKg(rows), 2), fmtNum(sumMc(rows), 0, 3)].forEach(x => { const c = document.createElement('span'); c.textContent = x; tot.append(c); });
+    tbl.append(tot);
+    sec.append(tbl); body.append(sec);
   });
 }
 function opRow(f, it) {
@@ -938,7 +1004,7 @@ function opRow(f, it) {
     const panel = document.createElement('div'); panel.className = 'fo-panel';
     const hint = document.createElement('p'); hint.className = 'fo-hint'; hint.textContent = 'Toque no RG que você pegou e informe o Peso Total e o MC da baixa:';
     const grid = document.createElement('div'); grid.className = 'rg-grid';
-    it.rolos.forEach(r => {
+    sortRolos(it.rolos).forEach(r => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'rg-chip' + (r.picked ? ' on' : '');
       b.setAttribute('aria-pressed', String(!!r.picked));
       const a = document.createElement('b'); a.textContent = (r.picked ? '✓ ' : '') + (r.rg || '—');

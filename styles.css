@@ -840,3 +840,26 @@ th.num-cell,td.num-cell{text-align:right}
 .phone-preview{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
 .phone-preview .phone-text{margin:0 0 10px}
 .phone-preview .secondary{width:100%;height:42px}
+
+/* ---------- aba Baixas da pasta ---------- */
+.bx-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.bx-summary div{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:12px;background:var(--ok-bg);border:1px solid var(--ok-line)}
+.bx-summary span{font-size:9.5px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:var(--ok)}
+.bx-summary b{font-size:17px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.bx-warn{margin:0;padding:8px 12px;border-radius:10px;background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn);font-size:12px;font-weight:650}
+.folder-body>*{flex:none}
+.bx-copy{height:40px;width:100%}
+.bx-table{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.bx-row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.8fr);gap:8px;align-items:center;width:100%;padding:11px 14px;border:0;border-top:1px solid var(--line-2);background:transparent;text-align:left;color:var(--ink);font-size:13px;font-variant-numeric:tabular-nums}
+.bx-row>*{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bx-row>:nth-child(3),.bx-row>:nth-child(4){text-align:right}
+button.bx-row:hover{background:var(--surface-2)}
+.bx-row strong{color:var(--ok);font-weight:750}
+.bx-row.missing strong{color:var(--warn)}
+.bx-head{border-top:0;padding-top:8px;padding-bottom:8px;background:var(--surface-2);font-size:9.5px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.bx-total{background:var(--surface-2);font-size:12px;font-weight:750;color:var(--ink-2)}
+@media(max-width:720px){
+  .folder-tools .seg button{padding:11px 4px;font-size:12px}
+  .bx-row{padding:12px 10px;gap:6px;font-size:13px}
+  .bx-summary b{font-size:15px}
+}
