@@ -948,7 +948,11 @@ function renderBaixas(f, body) {
     const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = !!r.baixado; inp.setAttribute('aria-label', `Baixa efetuada do RG ${r.rg}`);
     inp.onchange = () => setBaixado(f.id, it.key, r, inp.checked);
     ck.append(inp);
-    const c1 = document.createElement('button'); c1.type = 'button'; c1.className = 'bx-rg'; c1.textContent = r.rg || '—'; c1.title = 'Corrigir a baixa deste RG'; c1.onclick = () => openBaixa(f.id, it, r);
+    const c1 = document.createElement('span'); c1.className = 'bx-rgcell';
+    const rgBtn = document.createElement('button'); rgBtn.type = 'button'; rgBtn.className = 'bx-rg'; rgBtn.textContent = r.rg || '—'; rgBtn.title = 'Corrigir a baixa deste RG'; rgBtn.onclick = () => openBaixa(f.id, it, r);
+    const cpy = document.createElement('button'); cpy.type = 'button'; cpy.className = 'bx-copyrg'; cpy.textContent = '⧉'; cpy.title = `Copiar o RG ${r.rg}`; cpy.setAttribute('aria-label', `Copiar o RG ${r.rg}`);
+    cpy.onclick = () => copyRg(r.rg, cpy);
+    c1.append(rgBtn, cpy);
     const c2 = document.createElement('span'); c2.className = 'bx-desc';
     const dn = document.createElement('span'); dn.textContent = it.descricao || 'Produto';
     const dc = document.createElement('small'); dc.textContent = it.produto + (r.baixado && r.baixadoBy ? ' · baixado por ' + r.baixadoBy : '');
@@ -960,6 +964,20 @@ function renderBaixas(f, body) {
   });
   body.append(tbl);
   if (printOptsFor === f.id) buildPrintOpts(f, body);
+}
+// copia só o RG (para colar no Protheus na hora da baixa)
+async function copyRg(rg, btn) {
+  const ok = await copyText(String(rg || ''));
+  if (ok) { btn.textContent = '✓'; btn.classList.add('ok'); setTimeout(() => { btn.textContent = '⧉'; btn.classList.remove('ok'); }, 1400); message(`RG ${rg} copiado.`, 'success'); }
+  else message('Não foi possível copiar neste navegador.', 'error');
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; }
+  catch {
+    // navegadores sem a API de área de transferência (ou sem permissão): copia por um campo escondido
+    try { const ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'; document.body.append(ta); ta.select(); ta.setSelectionRange(0, t.length); const ok = document.execCommand('copy'); ta.remove(); return ok; }
+    catch { return false; }
+  }
 }
 async function copyBaixas(f) {
   const list = baixaRolls(f);
@@ -1134,7 +1152,7 @@ function baixaStep(n, othersCount = 0) {
     const has = r.picked && hasVal(r.pesoBaixa);
     $('baixaPeso').value = has ? fmtNum(Number(r.pesoBaixa), 2) : '';   // vem vazio: digita só o que vai baixar
     $('baixaMc').value = r.picked ? (r.mc || '') : '';
-    $('baixaHint').textContent = 'Confira o produto acima e digite o peso que deve ser baixado deste RG. Com o peso, o RG vai para a aba Baixas.' + (r.picked && r.pickedBy ? ` Pego por ${r.pickedBy}.` : '');
+    $('baixaHint').textContent = 'Confira o produto e digite só os números do peso: 80 = 0,80 kg · 180 = 1,80 kg · 1875 = 18,75 kg. Com o peso, o RG vai para a aba Baixas.' + (r.picked && r.pickedBy ? ` Pego por ${r.pickedBy}.` : '');
     $('baixaUnpick').classList.toggle('hidden', !r.picked);
     $('baixaSave').textContent = has ? '✓ Atualizar baixa' : '✓ Salvar baixa';
   }
@@ -1166,6 +1184,17 @@ async function confirmPickedRg() {
     if (rr) baixaCtx.r = rr;
     baixaStep(2);
   } finally { btn.disabled = false; }
+}
+// Peso para baixa: digita só números e eles entram como centésimos — 80 vira 0,80; 180 vira 1,80; 1875 vira 18,75
+function maskPeso(v) {
+  const dg = String(v || '').replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 6);
+  if (!dg) return '';
+  return (Number(dg) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function onPesoInput(e) {
+  const el = e.target, out = maskPeso(el.value);
+  el.value = out;
+  try { el.setSelectionRange(out.length, out.length); } catch { /* alguns teclados não deixam mover o cursor */ }
 }
 function closeBaixa() { $('baixaModal').classList.add('hidden'); baixaCtx = null; }
 function baixaError(t) { $('baixaError').textContent = t || ''; $('baixaError').classList.toggle('hidden', !t); }
@@ -1865,6 +1894,7 @@ $('folderBack').onclick = openFolders;
 $('folderSearch').onclick = () => { closeFolders(); goSearch(); };
 $('folderClear').onclick = openClearBox;
 $('baixaForm').onsubmit = saveBaixa;
+$('baixaPeso').addEventListener('input', onPesoInput);
 $('closeBaixa').onclick = $('baixaCancel').onclick = $('baixaCancel1').onclick = closeBaixa;
 $('baixaConfirm').onclick = confirmPickedRg;
 $('baixaUnpick').onclick = unpickBaixa;
