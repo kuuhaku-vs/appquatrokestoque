@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const NOVA_VERSION = '11/11 19:35';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
+const NOVA_VERSION = '12/11 10:30';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -268,7 +268,7 @@ function goLogin(text) {
 }
 function goSearch() {
   $('stockSection').classList.add('hidden');
-  showView('search'); clearMessage();
+  showView('search'); clearMessage(); closeSuggests();
   $('codeInput').value = ''; updateCodeInput(); renderRecent();
   $('codeInput').focus();
 }
@@ -400,12 +400,26 @@ async function logout() {
 function requireLogin() { goLogin('Sua sessão expirou ou o Protheus recusou as credenciais. Entre novamente.'); }
 
 function cleanCode(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, CODE_LEN); }
+// O campo de pesquisa aceita o código (12 caracteres) ou o nome do artigo.
+const SUGGEST_MIN = 3, SUGGEST_DELAY_MS = 350, QUERY_MAX = 60;
+function cleanQuery(v) { return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9 .,\/+-]/g, '').replace(/\s+/g, ' ').replace(/^ /, '').slice(0, QUERY_MAX); }
+// código completo digitado/colado (aceita pontos e traços no meio); com espaço ou outro tamanho, é nome
+function asCode(v) { const t = String(v || '').toUpperCase().trim().replace(/[.\-\/]/g, ''); return CODE_RE.test(t) ? t : ''; }
+const queryLen = q => q.replace(/[^A-Z0-9]/g, '').length;
+function setQueryValue(el, v) {
+  if (el.value === v) return;
+  const atEnd = el.selectionStart === el.value.length, pos = el.selectionStart;
+  el.value = v;
+  if (!atEnd && document.activeElement === el) { try { el.setSelectionRange(pos, pos); } catch { /* campo sem seleção */ } }
+}
 function updateCodeInput() {
-  const el = $('codeInput'), v = cleanCode(el.value);
-  if (el.value !== v) el.value = v;
-  $('codeCount').textContent = `${v.length}/${CODE_LEN}`;
-  $('codeCount').classList.toggle('done', v.length === CODE_LEN);
-  $('codeBtn').disabled = v.length !== CODE_LEN;
+  const el = $('codeInput'), v = cleanQuery(el.value);
+  setQueryValue(el, v);
+  const codeLike = /^[A-Z0-9]*$/.test(v) && v.length <= CODE_LEN;   // sem espaço e até 12: ainda pode ser um código
+  el.classList.toggle('is-name', !codeLike);
+  $('codeCount').textContent = codeLike ? `${v.length}/${CODE_LEN}` : 'nome';
+  $('codeCount').classList.toggle('done', codeLike && v.length === CODE_LEN);
+  $('codeBtn').disabled = queryLen(v) < SUGGEST_MIN;
 }
 const HISTORY_KEY = 'nova_history_v1', HISTORY_MAX = 50;
 function getHistory() {
@@ -986,6 +1000,7 @@ function renderFolder() {
 // Aba "Baixas": só os RGs pegos que têm Peso Total para baixar, em ordem alfabética pela descrição.
 // A caixa marca que a baixa já foi feita no Protheus (fica gravada no aparelho e na planilha da equipe).
 const baixaRolls = f => pickedRolls(f).filter(x => hasVal(x.r.pesoBaixa));
+const armOf = r => String(r.armazem ?? '').trim() || '—';
 function renderBaixas(f, body) {
   const list = baixaRolls(f);
   if (!list.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Nenhum RG com Peso Total para baixar. Ao marcar o RG em "A pegar", informe o Peso Total.'; body.append(e); return; }
@@ -997,13 +1012,19 @@ function renderBaixas(f, body) {
   acts.append(info, pr, cp); body.append(acts);
   const tbl = document.createElement('div'); tbl.className = 'bx-table';
   const head = document.createElement('div'); head.className = 'bx-row bx-head';
-  ['', 'RG · Produto', 'Peso (kg)', 'MC', ''].forEach((x, k) => { const c = document.createElement('span'); c.textContent = x; if (!k) c.setAttribute('aria-label', 'Baixa efetuada'); if (k === 4) c.setAttribute('aria-label', 'Copiar RG'); head.append(c); });
+  ['', 'RG · Produto', 'Armazém', 'Peso (kg)', 'MC', ''].forEach((x, k) => {
+    const c = document.createElement('span'); c.textContent = x;
+    if (!k) c.setAttribute('aria-label', 'Baixa efetuada');
+    if (k === 2) { c.className = 'bx-arm-h'; c.dataset.short = 'Arm.'; c.title = 'Armazém onde o rolo está'; }   // no celular o título vira "Arm."
+    if (k === 5) c.setAttribute('aria-label', 'Copiar RG');
+    head.append(c);
+  });
   tbl.append(head);
   list.forEach(({ it, r }) => {
     // linha inteira abre a correção do peso, menos a caixa de "baixa efetuada" e o botão de copiar
     const row = document.createElement('div'); row.className = 'bx-row bx-item' + (r.baixado ? ' done' : '');
     row.tabIndex = 0; row.setAttribute('role', 'button'); row.title = 'Toque para alterar o peso para baixa';
-    row.setAttribute('aria-label', `RG ${r.rg}, ${it.descricao || 'Produto'}, ${fmtNum(Number(r.pesoBaixa), 2)} kg. Alterar o peso para baixa`);
+    row.setAttribute('aria-label', `RG ${r.rg}, ${it.descricao || 'Produto'}, armazém ${armOf(r)}, ${fmtNum(Number(r.pesoBaixa), 2)} kg. Alterar o peso para baixa`);
     row.onclick = e => { if (e.target.closest('.bx-check, .bx-copyrg')) return; openBaixa(f.id, it, r); };
     row.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); openBaixa(f.id, it, r); } };
     const ck = document.createElement('label'); ck.className = 'bx-check'; ck.title = 'Baixa efetuada';
@@ -1012,7 +1033,7 @@ function renderBaixas(f, body) {
       if (!inp.checked) return setBaixado(f.id, it.key, r, false);
       // baixa feita no Protheus: confirma e o RG sai da pasta
       const ok = await askOk({ tone: 'ok', kicker: 'BAIXA EFETUADA', title: 'A baixa já foi feita no Protheus?',
-        card: { label: `RG ${r.rg}`, title: it.descricao || it.produto, lines: [['Código', it.produto], ['Peso para baixa', fmtNum(Number(r.pesoBaixa), 2) + ' kg'], hasVal(r.mc) ? ['MC', String(r.mc)] : null, ['OP', `${it.op || '—'} · ${it.partida || '—'}`]] },
+        card: { label: `RG ${r.rg}`, title: it.descricao || it.produto, lines: [['Código', it.produto], ['Armazém', armOf(r)], ['Peso para baixa', fmtNum(Number(r.pesoBaixa), 2) + ' kg'], hasVal(r.mc) ? ['MC', String(r.mc)] : null, ['OP', `${it.op || '—'} · ${it.partida || '—'}`]] },
         note: `Ao confirmar, o RG sai da pasta "${f.name}"${isShared() ? ' para todos os usuários' : ''}.`, okText: '✓ Sim, baixa feita', cancelText: 'Ainda não' });
       if (!ok) { inp.checked = false; return; }
       row.classList.add('leaving'); inp.disabled = true;
@@ -1027,11 +1048,13 @@ function renderBaixas(f, body) {
     const dn = document.createElement('small'); dn.className = 'bx-sub'; dn.textContent = it.descricao || 'Produto';
     const dc = document.createElement('small'); dc.className = 'bx-sub'; dc.textContent = it.produto + (r.baixado && r.baixadoBy ? ' · baixado por ' + r.baixadoBy : '');
     c1.append(rg, dn, dc);
+    // armazém do rolo (gravado quando a OP foi salva na pasta), antes do peso e do MC
+    const ca = document.createElement('span'); ca.className = 'bx-arm' + (r.armazem ? '' : ' none'); ca.textContent = armOf(r); ca.title = r.armazem ? `Armazém ${r.armazem}` : 'Armazém não informado (OP salva por uma versão antiga)';
     const c3 = document.createElement('strong'); c3.textContent = fmtNum(Number(r.pesoBaixa), 2);
     const c4 = document.createElement('strong'); c4.textContent = hasVal(r.mc) ? r.mc : '—';
     const cpy = document.createElement('button'); cpy.type = 'button'; cpy.className = 'bx-copyrg'; cpy.textContent = '⧉'; cpy.title = `Copiar o RG ${r.rg}`; cpy.setAttribute('aria-label', `Copiar o RG ${r.rg}`);
     cpy.onclick = e => { e.stopPropagation(); copyRg(r.rg, cpy); };
-    row.append(ck, c1, c3, c4, cpy);
+    row.append(ck, c1, ca, c3, c4, cpy);
     tbl.append(row);
   });
   body.append(tbl);
@@ -1054,7 +1077,7 @@ async function copyText(t) {
 async function copyBaixas(f) {
   const list = baixaRolls(f);
   const lines = [`Baixas da pasta ${f.name}`, ''];
-  list.forEach(({ it, r }) => lines.push(`${r.baixado ? '[x]' : '[ ]'} RG ${r.rg} · ${it.descricao || it.produto} (${it.produto}) · Peso ${fmtNum(Number(r.pesoBaixa), 2)} kg · MC ${hasVal(r.mc) ? r.mc : '—'}`));
+  list.forEach(({ it, r }) => lines.push(`${r.baixado ? '[x]' : '[ ]'} RG ${r.rg} · ${it.descricao || it.produto} (${it.produto}) · Armazém ${armOf(r)} · Peso ${fmtNum(Number(r.pesoBaixa), 2)} kg · MC ${hasVal(r.mc) ? r.mc : '—'}`));
   try { await navigator.clipboard.writeText(lines.join('\n')); message('Lista de baixas copiada. Cole no WhatsApp, e-mail ou bloco de notas.', 'success'); }
   catch { message('Não foi possível copiar neste navegador. Use 🖨 Imprimir ou ↓ Exportar planilha.', 'error'); }
 }
@@ -1110,8 +1133,8 @@ function printBaixas(f, prefs = printPrefs()) {
   const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   // como nas pastas: RG em cima; descrição e código do produto embaixo, na mesma coluna
-  const row = ({ it, r }) => `<tr><td class="ck">${r.baixado ? '☑' : '☐'}</td><td class="main"><b class="rg">${esc(r.rg)}</b><span class="sub">${esc(it.descricao || 'Produto')}</span>${plan.showCode ? `<span class="sub">${esc(it.produto)}</span>` : ''}</td><td class="n">${esc(fmtNum(Number(r.pesoBaixa), 2))}</td><td class="n">${esc(hasVal(r.mc) ? r.mc : '—')}</td></tr>`;
-  const table = rows => `<table><thead><tr><th class="ck">Baixa</th><th>RG · Produto</th><th class="n">Peso (kg)</th><th class="n">MC</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>`;
+  const row = ({ it, r }) => `<tr><td class="ck">${r.baixado ? '☑' : '☐'}</td><td class="main"><b class="rg">${esc(r.rg)}</b><span class="sub">${esc(it.descricao || 'Produto')}</span>${plan.showCode ? `<span class="sub">${esc(it.produto)}</span>` : ''}</td><td class="a">${esc(armOf(r))}</td><td class="n">${esc(fmtNum(Number(r.pesoBaixa), 2))}</td><td class="n">${esc(hasVal(r.mc) ? r.mc : '—')}</td></tr>`;
+  const table = rows => `<table><thead><tr><th class="ck">Baixa</th><th>RG · Produto</th><th class="a">Arm.</th><th class="n">Peso (kg)</th><th class="n">MC</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>`;
   // colunas em ordem de leitura: a 1ª coluna termina e a 2ª continua de onde parou
   const parts = []; for (let k = 0; k < plan.cols; k++) parts.push(list.slice(k * plan.perCol, (k + 1) * plan.perCol));
   let box = $('printBaixas');
@@ -1513,7 +1536,9 @@ async function search(codeArg, from = 'search') {
   if (searching) return;
   clearMessage();
   if (!connected) return goLogin('Entre no Protheus antes de pesquisar.');
-  const code = cleanCode(codeArg ?? (from === 'results' ? $('term').value : $('codeInput').value));
+  const code = codeArg != null ? cleanCode(codeArg) : asCode((from === 'results' ? $('term') : $('codeInput')).value);
+  if (!code && codeArg == null) return submitSearch(from);   // não é um código completo: procura pelo nome
+  closeSuggests();
   if (!CODE_RE.test(code)) return message(`O código do produto deve ter ${CODE_LEN} caracteres (letras e números). Você digitou ${code.length}.`, 'error');
   const btn = from === 'results' ? $('searchBtn') : $('codeBtn');
   const label = btn.innerHTML;
@@ -1567,6 +1592,119 @@ async function search(codeArg, from = 'search') {
     updateCodeInput();
     if (from === 'search' && document.body.dataset.view === 'search') $('codeInput').focus();
   }
+}
+/* ------------------- sugestões de produto (código ou nome do artigo) ------------------- */
+// Enquanto digita: mostra na hora o que já foi pesquisado/salvo neste aparelho e, em seguida,
+// o que o cadastro de produtos do Protheus (SB1) devolve para o começo do código ou as palavras do nome.
+const suggesters = {};
+function closeSuggests() { Object.values(suggesters).forEach(s => s.close()); }
+function submitSearch(from) {
+  const el = from === 'results' ? $('term') : $('codeInput'), sg = suggesters[from];
+  const code = asCode(el.value);
+  if (code) return search(code, from);
+  const q = cleanQuery(el.value).trim();
+  if (queryLen(q) < SUGGEST_MIN) return message(`Digite o código com ${CODE_LEN} caracteres ou pelo menos ${SUGGEST_MIN} letras do nome do artigo.`, 'error');
+  if (!connected) return goLogin('Entre no Protheus antes de pesquisar.');
+  clearMessage();
+  sg.run(q, true);   // um só resultado: já pesquisa; vários: escolhe na lista
+}
+const qWords = q => q.split(' ').filter(Boolean);
+function suggestMatch(q, code, description) {
+  const words = qWords(q), d = cleanQuery(description || '');
+  if (words.length === 1 && String(code).startsWith(words[0])) return 'codigo';
+  return words.length && words.every(w => d.includes(w)) ? 'nome' : '';
+}
+// o que já está neste aparelho: histórico de pesquisas e produtos salvos nas pastas
+function localSuggestions(q) {
+  const out = [], seen = new Set();
+  const add = (code, description, tag) => {
+    code = String(code || '').trim().toUpperCase();
+    if (!CODE_RE.test(code) || seen.has(code)) return;
+    const by = suggestMatch(q, code, description); if (!by) return;
+    seen.add(code); out.push({ code, description: String(description || '').trim(), by, tag });
+  };
+  getHistory().forEach(h => add(h.code, h.description, 'recente'));
+  try { readFolders().folders.forEach(f => (f.items || []).forEach(it => add(it.produto, it.descricao, 'pasta'))); } catch { /* sem pastas */ }
+  return out.slice(0, 6);
+}
+function markText(text, words) {
+  const frag = document.createDocumentFragment(), t = String(text || '');
+  const ws = words.filter(Boolean).map(w => w.replace(/[.*+?^${}()|[\]\\\/-]/g, '\\$&'));
+  if (!ws.length) { frag.append(t); return frag; }
+  const re = new RegExp(`(${ws.join('|')})`, 'gi');
+  t.split(re).forEach((part, i) => { if (!part) return; if (i % 2) { const m = document.createElement('mark'); m.textContent = part; frag.append(m); } else frag.append(part); });
+  return frag;
+}
+function setupSuggest(input, box, from) {
+  let seq = 0, timer = null, items = [], active = -1, lastQ = '';
+  const isOpen = () => !box.classList.contains('hidden');
+  const close = () => { seq++; clearTimeout(timer); box.classList.add('hidden'); box.replaceChildren(); items = []; active = -1; lastQ = ''; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); };
+  const pick = it => { close(); input.value = it.code; if (from === 'search') updateCodeInput(); search(it.code, from); };
+  const setActive = i => {
+    active = i;
+    box.querySelectorAll('.sg-item').forEach((b, k) => { b.classList.toggle('on', k === i); b.setAttribute('aria-selected', k === i ? 'true' : 'false'); if (k === i) { b.scrollIntoView({ block: 'nearest' }); input.setAttribute('aria-activedescendant', b.id); } });
+    if (i < 0) input.removeAttribute('aria-activedescendant');
+  };
+  const note = (text, cls = '') => { const n = document.createElement('div'); n.className = 'sg-note ' + cls; n.textContent = text; return n; };
+  const render = (q, list, state) => {
+    items = list; active = -1; box.replaceChildren();
+    const words = qWords(q);
+    list.forEach((it, i) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'sg-item'; b.id = `${box.id}-${i}`; b.setAttribute('role', 'option'); b.setAttribute('aria-selected', 'false'); b.tabIndex = -1;
+      const code = document.createElement('b'); code.className = 'sg-code'; code.append(it.by === 'codigo' ? markText(it.code, [words[0]]) : it.code);
+      const desc = document.createElement('span'); desc.className = 'sg-desc';
+      if (it.description) desc.append(markText(it.description, it.by === 'nome' ? words : [])); else { desc.textContent = 'Descrição não informada'; desc.classList.add('none'); }
+      b.append(code, desc);
+      if (it.tag) { const t = document.createElement('i'); t.className = 'sg-tag'; t.textContent = it.tag === 'pasta' ? '📁 pasta' : '🕘 recente'; b.append(t); }
+      b.onclick = () => pick(it);
+      box.append(b);
+    });
+    if (state.loading) { const n = note('Procurando no Protheus…', 'loading'); const sp = document.createElement('span'); sp.className = 'spinner'; n.prepend(sp); box.append(n); }
+    else if (state.error) box.append(note(list.length ? 'Não foi possível consultar o Protheus agora; mostrando só o que está neste aparelho.' : `Não foi possível buscar sugestões agora. ${state.error}`, 'err'));
+    else if (!list.length) box.append(note(`Nenhum artigo encontrado com “${q}”. Confira o nome ou digite o código completo.`));
+    else if (state.more) box.append(note('Há mais resultados. Continue digitando para refinar.'));
+    box.classList.remove('hidden'); input.setAttribute('aria-expanded', 'true');
+  };
+  // auto = veio do botão Pesquisar / Enter: com um único resultado, pesquisa direto
+  const run = async (q, auto = false) => {
+    clearTimeout(timer);
+    const my = ++seq; lastQ = q;
+    const local = localSuggestions(q);
+    render(q, local, { loading: true });
+    let d;
+    try { d = await api(`/api/suggest?q=${encodeURIComponent(q)}`, {}, 25000); }
+    catch (e) {
+      if (my !== seq) return;
+      if (e.status === 401 || e.status === 403) { close(); return requireLogin(); }
+      d = { items: [], error: e.status === 404 ? 'Esta versão do NOVA não tem a busca por nome.' : (e.message || 'Falha na consulta.') };
+    }
+    if (my !== seq) return;   // o usuário já digitou outra coisa
+    const seen = new Set(local.map(x => x.code));
+    const remote = (Array.isArray(d.items) ? d.items : []).filter(x => x && CODE_RE.test(x.code) && !seen.has(x.code));
+    // primeiro o que bate pelo código, depois pelo nome (em ordem alfabética)
+    remote.sort((a, b) => (a.by === 'codigo' ? 0 : 1) - (b.by === 'codigo' ? 0 : 1) || String(a.description).localeCompare(String(b.description), 'pt-BR') || a.code.localeCompare(b.code));
+    const all = [...local, ...remote];
+    if (auto && all.length === 1) return pick(all[0]);
+    render(q, all, { error: d.error || '', more: !!d.more });
+    if (auto && all.length > 1) message(`${all.length}${d.more ? '+' : ''} artigos com “${q}”. Escolha um na lista.`, 'info');
+  };
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = cleanQuery(input.value).trim();
+    if (queryLen(q) < SUGGEST_MIN || asCode(q) || !connected) return close();   // código completo: é só pesquisar
+    if (q === lastQ && isOpen()) return;
+    seq++;   // descarta a resposta da consulta anterior
+    timer = setTimeout(() => run(q), SUGGEST_DELAY_MS);
+  });
+  input.addEventListener('keydown', e => {
+    if (!isOpen()) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { if (!items.length) return; e.preventDefault(); const n = items.length; setActive(e.key === 'ArrowDown' ? (active + 1) % n : (active <= 0 ? n - 1 : active - 1)); }
+    else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(items[active]); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
+  });
+  box.addEventListener('mousedown', e => e.preventDefault());   // tocar na lista não tira o foco do campo
+  input.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== input && !box.contains(document.activeElement)) close(); }, 180));
+  return { run, close };
 }
 function stock(p, rows = []) {
   selected = p; currentRows = Array.isArray(rows) ? rows : []; visibleRows = []; currentGroups = [];
@@ -1979,10 +2117,12 @@ function exportCsv() {
 $('loginForm').onsubmit = login;
 $('username').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('password').focus(); } };
 document.querySelectorAll('.logout-btn').forEach(b => { b.onclick = logout; });
-$('codeForm').onsubmit = e => { e.preventDefault(); search(undefined, 'search'); };
-$('codeInput').oninput = updateCodeInput;
-$('headerSearch').onsubmit = e => { e.preventDefault(); search(undefined, 'results'); };
-$('term').oninput = () => { const v = cleanCode($('term').value); if ($('term').value !== v) $('term').value = v; };
+$('codeForm').onsubmit = e => { e.preventDefault(); submitSearch('search'); };
+$('codeInput').addEventListener('input', updateCodeInput);
+$('headerSearch').onsubmit = e => { e.preventDefault(); submitSearch('results'); };
+$('term').addEventListener('input', () => setQueryValue($('term'), cleanQuery($('term').value)));
+suggesters.search = setupSuggest($('codeInput'), $('codeSuggest'), 'search');
+suggesters.results = setupSuggest($('term'), $('termSuggest'), 'results');
 $('newSearchBtn').onclick = goSearch;
 $('openHistory').onclick = openHistory;
 $('closeHistory').onclick = closeHistory; $('historyClose2').onclick = closeHistory;

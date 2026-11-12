@@ -165,6 +165,9 @@ function buildReport(o) {
   const finalW = widths.map(w => w + extra * (w / wTotal)); // sobra distribuída proporcionalmente
   const colgroup = `<colgroup>${finalW.map(w => `<col style="width:${(w / L.innerW * 100).toFixed(2)}%">`).join('')}</colgroup>`;
   const ink = o.eco ? '#000' : '#1a2040';
+  // logo do Grupo Quatro K no canto do cabeçalho de todas as páginas (410 x 125 px); o título continua centralizado
+  const LOGO_H = 11, LOGO_W = Math.round(LOGO_H * 410 / 125);
+  const logoUrl = new URL('logo-grupo4k.png', document.baseURI).href;
   const css = `
 @page{size:${o.paper === 'Carta' ? 'letter' : o.paper} ${o.orient};margin:${L.m}mm}
 *{box-sizing:border-box}
@@ -172,7 +175,8 @@ html,body{margin:0;padding:0}
 body{font-family:"Segoe UI",Arial,Helvetica,sans-serif;font-size:${L.f.pt}pt;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .sheet{position:relative;width:${L.w}mm;height:${L.h}mm;padding:${L.m}mm;background:#fff;overflow:hidden}
 .inner{position:relative;width:${L.innerW}mm;height:${L.innerH}mm;overflow:hidden}
-.ph{height:${L.head}mm;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;text-align:center;padding-bottom:2.5mm;border-bottom:.5mm solid ${ink}}
+.ph{position:relative;height:${L.head}mm;display:flex;flex-direction:column;justify-content:flex-start;align-items:center;text-align:center;padding:0 ${LOGO_W + 4}mm 2.5mm;border-bottom:.5mm solid ${ink}}
+.ph .logo{position:absolute;left:0;top:.5mm;height:${LOGO_H}mm;width:auto;${o.eco ? 'filter:grayscale(1) contrast(1.4);' : ''}}
 .ph h1{margin:0 0 1.2mm;font-size:${L.f.pt + 5}pt;line-height:1.1;letter-spacing:.01em;color:${ink}}
 .ph .sub{font-size:${L.f.pt - 0.5}pt;color:#333;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .ph .meta{text-align:center;font-size:${L.f.pt - 1}pt;color:#444;line-height:1.5;padding-top:.8mm}
@@ -204,7 +208,7 @@ ${o.eco ? '.pp.ok,.pp.op{background:#000;color:#fff}' : '.pp.op{background:#ffef
 
   const pageHtml = (items, n) => {
     const first = n === 1;
-    const head = `<div class="ph"><div><h1>${esc(o.title)}</h1><div class="sub">${esc(subParts.join('  ·  '))}</div></div><div class="meta">Gerado em ${esc(stamp)}${userTxt ? ' · por ' + esc(userTxt) : ''}</div></div>`;
+    const head = `<div class="ph"><img class="logo" src="${esc(logoUrl)}" alt="Grupo Quatro K"><div><h1>${esc(o.title)}</h1><div class="sub">${esc(subParts.join('  ·  '))}</div></div><div class="meta">Gerado em ${esc(stamp)}${userTxt ? ' · por ' + esc(userTxt) : ''}</div></div>`;
     const summary = first && o.summary ? `<div class="sum"><div><span>Posições</span><b>${rows.length.toLocaleString('pt-BR')}</b></div><div><span>Aprovados p/ amostra</span><b>${ideal.toLocaleString('pt-BR')}</b></div><div><span>Peso total</span><b>${totalWeight.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg</b></div><div><span>Endereços</span><b>${addrs.toLocaleString('pt-BR')}</b></div></div>` : '';
     const thead = `<thead><tr>${cols.map(c => `<th class="${c.cls === 'n' ? 'n' : c.cls === 'c' ? 'c' : ''}">${esc(c.short || c.label)}</th>`).join('')}</tr></thead>`;
     const body = items.map(it => {
@@ -266,8 +270,18 @@ function printReport() {
   if (!rLast || rLast.error) return;
   saveReportOpts();
   const frame = $('reportFrame');
-  try { frame.contentWindow.focus(); frame.contentWindow.print(); window.focus(); }
-  catch (e) { message('Não foi possível abrir a impressão: ' + e.message, 'error'); }
+  const go = () => {
+    try { frame.contentWindow.focus(); frame.contentWindow.print(); window.focus(); }
+    catch (e) { message('Não foi possível abrir a impressão: ' + e.message, 'error'); }
+  };
+  // espera a logo do cabeçalho terminar de carregar (senão sairia em branco no papel)
+  let pending = [];
+  try { pending = [...frame.contentDocument.images].filter(i => !i.complete); } catch { /* imprime mesmo assim */ }
+  if (!pending.length) return go();
+  let left = pending.length, fired = false;
+  const one = () => { if (--left <= 0 && !fired) { fired = true; go(); } };
+  pending.forEach(i => { i.addEventListener('load', one, { once: true }); i.addEventListener('error', one, { once: true }); });
+  setTimeout(() => { if (!fired) { fired = true; go(); } }, 2500);
 }
 
 $('closeReport').onclick = closeReport;

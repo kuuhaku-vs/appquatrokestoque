@@ -57,11 +57,12 @@
     <div id="activeFolderBar" class="active-folder hidden"><span>📁 Pasta <b id="activeFolderName"></b></span><button type="button" id="activeFolderOpen" class="link-btn">Ver pasta</button><button type="button" id="activeFolderEnd" class="link-btn">Encerrar</button></div>
     <div id="faceOffer" class="face-offer hidden"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9.5v1M15 9.5v1M12 9.5v3.5h-1M9.5 16c1.5 1 3.5 1 5 0"/></svg><span id="faceOfferText">Entrar com Face ID nas próximas vezes?</span><button id="faceEnable" class="primary" type="button">Ativar</button><button id="faceLater" class="link-btn" type="button">Agora não</button></div>
     <h1>Consultar Material</h1>
-    <p class="card-sub">Digite o código do produto com 12 caracteres.</p>
+    <p class="card-sub">Digite o código do produto (12 caracteres) ou o nome do artigo e escolha na lista.</p>
     <div class="code-wrap">
-      <input id="codeInput" class="code-input" maxlength="12" autocomplete="off" spellcheck="false" autocapitalize="characters" placeholder="Código..." aria-label="Código do produto (12 caracteres)">
+      <input id="codeInput" class="code-input" maxlength="60" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters" enterkeyhint="search" placeholder="Código ou nome..." aria-label="Código do produto (12 caracteres) ou nome do artigo" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="codeSuggest">
       <span id="codeCount" class="code-count">0/12</span>
     </div>
+    <div id="codeSuggest" class="suggest hidden" role="listbox" aria-label="Sugestões de produto"></div>
     <button id="codeBtn" class="primary big-btn" type="submit" disabled>Pesquisar <b>→</b></button>
     <button type="button" id="foldersBtn" class="secondary big-btn folders-btn">📁 Pastas</button>
     <div class="history-link-wrap"><button type="button" id="openHistory" class="link-btn hidden">🕘 Ver histórico de pesquisas</button></div>
@@ -73,7 +74,7 @@
   <header class="topbar">
     <div class="brand"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
     <form class="header-search" id="headerSearch" aria-label="Nova consulta" novalidate>
-      <div class="search-input-wrap"><span>⌕</span><input id="term" maxlength="12" autocomplete="off" placeholder="Código do produto (12 caracteres)" spellcheck="false" aria-label="Código do produto"></div>
+      <div class="search-input-wrap"><span>⌕</span><input id="term" maxlength="60" autocomplete="off" autocorrect="off" enterkeyhint="search" placeholder="Código (12 caracteres) ou nome do artigo" spellcheck="false" aria-label="Código do produto ou nome do artigo" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="termSuggest"><div id="termSuggest" class="suggest suggest-pop hidden" role="listbox" aria-label="Sugestões de produto"></div></div>
       <button id="searchBtn" class="primary search-btn" type="submit">Pesquisar <b>→</b></button>
     </form>
     <div class="topbar-right">

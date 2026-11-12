@@ -201,6 +201,41 @@ async function lookupGroup(code, log) {
   return res;
 }
 
+// Sugestões de produto enquanto o usuário digita: cadastro SB1 pelo começo do código e/ou por palavras do nome
+// (cada palavra precisa aparecer na descrição, em qualquer ordem). Consultas pequenas, guardadas em memória.
+const SUGGEST_LIMIT = 30, SUGGEST_TIMEOUT_MS = 20000, suggestCache = new Map();
+function suggestText(v) {
+  return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9 .,\/+-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+async function suggestProducts(text) {
+  const q = suggestText(text), compact = q.replace(/[^A-Z0-9]/g, '');
+  if (compact.length < 3) return { query: q, items: [], more: false };
+  if (suggestCache.has(q)) return suggestCache.get(q);
+  const words = q.split(' ').filter(Boolean).slice(0, 6);
+  const errors = [];
+  const run = async where => {
+    try { const r = await fetchAll({ tables: 'SB1', fields: 'B1_COD,B1_DESC', where }, { maxPages: 1, pageSize: SUGGEST_LIMIT, timeoutMs: SUGGEST_TIMEOUT_MS }); return r.rows; }
+    catch (e) { if (e.status === 401 || e.status === 403) throw e; errors.push(String(e.message || e).slice(0, 160)); return null; }
+  };
+  // texto sem espaço, só letras e números: pode ser o começo de um código
+  const codeLike = words.length === 1 && /^[A-Z0-9]+$/.test(q) && q.length <= 15;
+  const [byCode, byName] = await Promise.all([
+    codeLike ? run(`B1_COD LIKE '${q}%'`) : Promise.resolve([]),
+    run(words.map(w => `B1_DESC LIKE '%${w}%'`).join(' AND '))
+  ]);
+  const items = [], seen = new Set();
+  const add = (rows, by) => (rows || []).forEach(r => {
+    const code = String(field(r, 'B1_COD') ?? '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{12}$/.test(code) || seen.has(code)) return;   // a consulta de estoque usa códigos de 12 caracteres
+    seen.add(code); items.push({ code, description: String(field(r, 'B1_DESC') ?? '').trim(), by });
+  });
+  add(byCode, 'codigo'); add(byName, 'nome');
+  const failed = byCode === null && byName === null || (!codeLike && byName === null);
+  const out = { query: q, items, more: (byCode || []).length >= SUGGEST_LIMIT || (byName || []).length >= SUGGEST_LIMIT, error: failed ? (errors[0] || 'falha na consulta') : '' };
+  if (!errors.length) { if (suggestCache.size > 200) suggestCache.clear(); suggestCache.set(q, out); }
+  return out;
+}
+
 // Pesquisa em etapas. A base (só SZ5) é a fonte confiável; SZ6/SZL só enriquecem se baterem 1:1.
 async function searchStock(code) {
   const plain = code.replace(/''/g, "'");
@@ -445,6 +480,7 @@ async function handle(path, options = {}) {
     const groups = [...r.groups.values()].sort((a, b) => a.group.localeCompare(b.group));
     return { groups, withGramatura: groups.filter(g => g.gramatura).length, cached: r.cached, truncated: !!r.truncated, loadedAt: r.at };
   }
+  if (p.endsWith('/api/suggest')) { need(); return suggestProducts(url.searchParams.get('q')); }
   if (p.endsWith('/api/stock') || p.endsWith('/api/products')) {
     need();
     const code = safeCode(url.searchParams.get('code'));
