@@ -154,7 +154,7 @@ function closeEtiqueta() { etqSeq++; $('etqModal').classList.add('hidden'); etqC
 function fillEtiquetaLabel(p) {
   const box = $('etqLabel'); box.replaceChildren();
   box.append(etqLine('RG', p.rg));
-  if (p.kind !== 'qr') { box.append(etqLine('Origem', 'RG digitado (sem os dados do QR)')); return; }
+  if (p.kind !== 'qr') { box.append(etqLine('Origem', 'RG digitado (sem os dados do QR)', 'wide')); return; }
   box.append(etqLine('Código do produto', p.produto), etqLine('Peso líquido', kg(p.pesoLiq)), etqLine('OP', p.op), etqLine('Partida', p.partida));
   const raw = document.createElement('p'); raw.className = 'etq-raw'; raw.textContent = `Código lido: ${p.raw}`; box.append(raw);
 }
@@ -166,7 +166,7 @@ async function showEtiqueta(p) {
   $('etqDesc').textContent = 'Consultando o Protheus…'; $('etqCode').textContent = p.produto || '';
   fillEtiquetaLabel(p);
   const st = $('etqStock'); st.replaceChildren();
-  const wait = document.createElement('p'); wait.className = 'etq-wait'; wait.innerHTML = '<span class="spinner"></span> Procurando o RG no estoque…'; st.append(wait);
+  const wait = document.createElement('p'); wait.className = 'etq-wait'; wait.innerHTML = p.produto ? '<span class="spinner"></span> Consultando o estoque do produto e procurando o RG…' : '<span class="spinner"></span> Procurando o RG no Protheus…'; st.append(wait);
   $('etqWarn').classList.add('hidden'); $('etqBaixa').disabled = true; $('etqStockBtn').disabled = !p.produto;
   $('etqPeso').value = ''; $('etqMc').value = ''; $('etqPeso').disabled = $('etqMc').disabled = true; etqError(''); $('etqUseLabel').classList.add('hidden'); $('etqBaixa').textContent = '✓ Salvar baixa';
   $('etqModal').classList.remove('hidden');
@@ -199,16 +199,17 @@ async function showEtiqueta(p) {
   if (row) {
     st.append(etqLine('Armazém', info.armazem || '—'), etqLine('Endereço', info.endereco || '—'), etqLine('Peso atual', kg(info.peso)),
       etqLine('Gramatura', info.gramatura === null ? '—' : fmtNum(info.gramatura, 0, 2)), etqLine('CMC', info.cmc === null ? '—' : fmtNum(info.cmc, 2)),
-      etqLine('OP · Partida', `${info.op || '—'} · ${info.partida || '—'}`), etqLine('Data de entrada', formatDate(field(row, 'Z5_DTENT')) || '—'));
+      etqLine('OP · Partida', `${info.op || '—'} · ${info.partida || '—'}`, 'wide'), etqLine('Data de entrada', formatDate(field(row, 'Z5_DTENT')) || '—'));
     const ton = String(field(row, 'Z5_TONALID') ?? '').trim(); if (ton) st.append(etqLine('Tonalidade', ton));
     const ult = formatDate(field(row, 'Z5_ULTATU')); if (ult && ult !== '—') st.append(etqLine('Última atualização', ult));
-    if (rows.length > 1) st.append(etqLine('Outros registros deste RG', rows.slice(1).map(r => `${addrOf(r) || 'sem endereço'} (arm. ${String(field(r, 'Z5_ALMOXA') ?? '').trim() || '—'}, ${kg(numericValue(field(r, 'Z5_PESOATU')))})`).join(' · ')));
-    if (!(info.peso > 0)) warns.push('Este RG está com peso atual zerado no Protheus (pode já ter sido baixado).');
+    if (rows.length > 1) st.append(etqLine('Outros registros deste RG', rows.slice(1).map(r => `${addrOf(r) || 'sem endereço'} (arm. ${String(field(r, 'Z5_ALMOXA') ?? '').trim() || '—'}, ${kg(numericValue(field(r, 'Z5_PESOATU')))})`).join(' · '), 'full'));
+    if (d.stock) st.append(etqLine('Estoque do produto', `${d.stock.rolls} rolo(s) · ${kg(d.stock.weight)}`, 'wide'));
+    if (!(info.peso > 0)) warns.push('Este RG não está no estoque do produto: o peso atual está zerado no Protheus (pode já ter sido baixado).');
     if (p.kind === 'qr' && p.pesoLiq !== null && info.peso > 0 && Math.abs(info.peso - p.pesoLiq) > 0.005) warns.push(`O peso da etiqueta (${kg(p.pesoLiq)}) é diferente do peso atual no Protheus (${kg(info.peso)}).`);
     if (p.kind === 'qr' && p.produto && produto && p.produto !== produto && !(p.produtos || []).includes(produto)) warns.push(`O código do produto lido na etiqueta (${p.produto}) é diferente do que está no Protheus (${produto}).`);
   } else {
     const n = document.createElement('p'); n.className = 'etq-wait';
-    n.textContent = err ? `Não foi possível consultar o Protheus agora. ${err}` : 'RG não encontrado na SZ5 do Protheus.';
+    n.textContent = err ? `Não foi possível consultar o Protheus agora. ${err}` : (d && d.stock ? `O RG não está entre os ${d.stock.rolls} rolo(s) em estoque do produto ${d.stock.code}, nem foi encontrado pelo número.` : 'RG não encontrado no Protheus (o produto também não tem rolos em estoque).');
     st.append(n);
     if (p.kind === 'qr') warns.push('Sem os dados do Protheus, a baixa fica só com o que está na etiqueta (sem armazém e endereço).');
   }

@@ -1040,3 +1040,46 @@ th.num-cell,td.num-cell{text-align:right}
 .etq-baixa .baixa-fields{margin-top:0}
 .etq-baixa .baixa-hint{margin:6px 0 0}
 .etq-baixa .etq-actions{margin:12px -14px 0;padding:12px 14px;border-top:1px solid var(--ok-line);background:var(--surface);border-radius:0 0 12px 12px}
+
+/* etiqueta lida — versão compacta no celular: tudo em uma tela, sem rolar */
+@media(max-width:720px){
+  .etq-modal{padding:14px 12px max(12px,env(safe-area-inset-bottom))}
+  .etq-modal .modal-heading h2{font-size:17px;margin:1px 0 0}
+  .etq-modal .modal-heading p{display:none}
+  .etq-modal .close-results{width:30px;height:30px}
+  .etq-modal .baixa-product{margin-top:8px;padding:7px 10px;border-radius:10px;gap:0}
+  .etq-modal .baixa-product span{display:none}
+  .etq-modal .baixa-product b{font-size:13.5px}
+  .etq-modal .baixa-product small{font-size:11px}
+  .etq-cols{gap:6px;margin-top:6px}
+  .etq-block{padding:7px 10px 8px;border-radius:10px}
+  .etq-block h3{margin:0 0 4px;font-size:8.5px}
+  .etq-lines{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px 8px}
+  .etq-lines div{display:block;padding:0;border:0;min-width:0}
+  .etq-lines div.wide{grid-column:span 2}
+  .etq-lines div.full{grid-column:1/-1}
+  .etq-lines small{display:block;font-size:9.5px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .etq-lines strong{display:block;text-align:left;font-size:12.5px;line-height:1.25}
+  .etq-raw{display:none}
+  .etq-wait{grid-column:1/-1;font-size:12px}
+  .etq-warn{margin-top:6px;padding:6px 9px;font-size:11.5px;line-height:1.3}
+  .etq-baixa{margin-top:6px;padding:7px 10px 0;border-radius:10px}
+  .etq-baixa h3{display:none}
+  .etq-baixa .baixa-fields{gap:8px}
+  .etq-baixa .field label{margin-bottom:3px;font-size:10px}
+  .etq-baixa .baixa-fields input{height:42px;font-size:18px}
+  .etq-baixa .baixa-hint{display:none}
+  .etq-baixa .baixa-use-label{margin:2px 0 0;padding:5px 0;font-size:12px}
+  .etq-baixa .form-error{margin-top:4px;font-size:11.5px}
+  .etq-baixa .etq-actions{margin:6px -10px 0;padding:8px 10px;gap:6px;border-radius:0 0 10px 10px}
+  .etq-modal .priority-actions>.primary{height:44px;font-size:13.5px}
+  .etq-modal .priority-actions>.secondary{height:34px;font-size:11.5px;padding:0 6px;white-space:nowrap}
+  .etq-modal .priority-actions>.text-button{height:34px;font-size:12px}
+  /* leitor: também mais baixo */
+  .scan-modal{padding:14px 12px max(12px,env(safe-area-inset-bottom))}
+  .scan-modal .modal-heading p{display:none}
+  .scan-box{margin-top:8px}
+  .scan-status{margin-top:6px;font-size:12px}
+  .scan-manual{margin-top:8px;padding-top:8px}
+  .scan-modal .priority-actions{margin-top:10px}
+}

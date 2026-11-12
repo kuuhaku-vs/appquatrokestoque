@@ -202,9 +202,10 @@ async function lookupGroup(code, log) {
   return res;
 }
 
-// Rolo pelo RG (leitura do QR da etiqueta). RG = Z5_SERIE + Z5_NUMERO. Não filtra peso nem armazém,
-// para mostrar onde o rolo está mesmo se já estiver zerado ou em outro armazém.
-// 1) pela série e número; 2) se não achar, pelos rolos com peso do produto lido na etiqueta.
+// Rolo da etiqueta lida (QR). RG = Z5_SERIE + Z5_NUMERO.
+// 1) consulta o estoque do produto lido na etiqueta (rolos com peso, em qualquer armazém) e procura nele o RG do QR;
+// 2) se não estiver no estoque (ou o RG foi digitado, sem código do produto), procura direto pelo RG,
+//    sem filtro de peso, para mostrar o rolo mesmo se já estiver zerado.
 async function findRoll(q) {
   const clean = v => safeCode(v).replace(/[^A-Z0-9]/g, '');
   const serie = clean(q.serie).slice(0, 6), numero = clean(q.numero).slice(0, 12), rg = clean(q.rg) || serie + numero;
@@ -221,19 +222,22 @@ async function findRoll(q) {
     const s = clean(field(r, 'Z5_SERIE')), n = clean(field(r, 'Z5_NUMERO'));
     return s + n === rg || (serie && s === serie && noZeros(n) === noZeros(numero)) || noZeros(n) === rg;
   };
-  let rows = [];
-  if (serie && numero) rows = ((await run('SZ5 pelo RG', `Z5_SERIE = '${serie}' AND Z5_NUMERO LIKE '%${numero}%'`, { maxPages: 2 })) || []).filter(same);
-  if (!rows.length) rows = ((await run('SZ5 pelo número do RG', `Z5_NUMERO LIKE '%${rg}%'`, { maxPages: 2 })) || []).filter(same);
-  for (const p of prods) {
-    if (rows.length) break;
-    rows = ((await run(`SZ5 do produto ${p}`, `Z5_PESOATU > 0 AND Z5_PROD = '${p}'`)) || []).filter(same);
-  }
   const peso = r => parseNumber(field(r, 'Z5_PESOATU')) || 0;
+  let rows = [], stock = null, via = '';
+  for (const p of prods) {
+    const all = await run(`Estoque do produto ${p}`, `Z5_PESOATU > 0 AND Z5_PROD = '${p}'`);
+    if (!all || !all.length) continue;   // leitura errada do código ou produto sem estoque: tenta a próxima
+    stock = { code: p, rolls: all.length, weight: Math.round(all.reduce((t, r) => t + peso(r), 0) * 100) / 100 };
+    rows = all.filter(same); if (rows.length) via = 'estoque';
+    break;
+  }
+  if (!rows.length && serie && numero) { rows = ((await run('SZ5 pelo RG', `Z5_SERIE = '${serie}' AND Z5_NUMERO LIKE '%${numero}%'`, { maxPages: 2 })) || []).filter(same); if (rows.length) via = 'rg'; }
+  if (!rows.length) { rows = ((await run('SZ5 pelo número do RG', `Z5_NUMERO LIKE '%${rg}%'`, { maxPages: 2 })) || []).filter(same); if (rows.length) via = 'rg'; }
   rows.sort((a, b) => peso(b) - peso(a));   // primeiro o registro com peso
-  const code = clean(rows[0] ? field(rows[0], 'Z5_PROD') : prods[0] || '');
+  const code = clean(rows[0] ? field(rows[0], 'Z5_PROD') : (stock ? stock.code : prods[0] || ''));
   let lk = null;
   if (code) { try { lk = await lookupGroup(code, () => {}); } catch (e) { if (e.status === 401 || e.status === 403) throw e; } }
-  return { rg, rows, product: { code, description: (lk && (lk.productDesc || lk.groupDesc)) || '' }, lookup: lk ? { group: lk.group, groupDesc: lk.groupDesc, gramIdeal: lk.gramIdeal } : null, attempts,
+  return { rg, rows, product: { code, description: (lk && (lk.productDesc || lk.groupDesc)) || '' }, lookup: lk ? { group: lk.group, groupDesc: lk.groupDesc, gramIdeal: lk.gramIdeal } : null, stock, via, attempts,
     failed: !rows.length && attempts.length > 0 && attempts.every(a => a.error) };
 }
 
