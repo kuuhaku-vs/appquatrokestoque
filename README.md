@@ -70,7 +70,7 @@ Dê dois cliques em **NOVA.exe** (fica nesta pasta, junto com o `index.html`). E
 - "Mantenha-me conectado" guarda o acesso **neste navegador** por 30 dias. Use só no seu celular e toque em **Sair** se emprestar o aparelho.
 
 ## Atualizar
-Envie de novo os arquivos alterados em **Add file → Upload files** (substituindo os antigos). O app no celular pega a versão nova ao abrir com internet.
+Envie de novo os arquivos alterados em **Add file → Upload files** (substituindo os antigos). O app no celular pega a versão nova ao abrir com internet. Ao alterar `styles.css` ou algum `.js`, troque também o número do `?v=` no `index.html` e o do `CACHE` no `sw.js` (o mesmo número nos dois): assim o celular nunca mistura a tela nova com o estilo antigo.
 
 ## Endereço do Protheus
 Fica em `config.js`. Se não quiser o endereço da empresa visível no repositório público, troque por `apiUrl: ''`: o NOVA passa a pedir o endereço no primeiro login (`https://protheus.quatroktextil.com.br:6632/rest05`) e guarda no aparelho.
