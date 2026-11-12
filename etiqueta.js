@@ -8,7 +8,7 @@
 //   | código do produto (letras em ASCII: 77=M → 1MM010900010) | OP | partida
 // Descrição, armazém, endereço, peso atual, gramatura etc. não estão no QR: vêm do Protheus (SZ5) pelo RG.
 //
-// A etiqueta tem também um QR pequeno só com o RG: "QR" + RG (ex.: QRFPF9164 → RG FPF9164).
+// A etiqueta tem também um código pequeno (Data Matrix, sem os três quadrados do QR) só com o RG: "QR" + RG (ex.: QRFPF9164 → RG FPF9164).
 // Ele serve de reserva quando o QR completo não está legível: produto, peso, OP e partida vêm do Protheus.
 
 const JSQR_URL = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';   // leitor de QR para navegadores sem leitor próprio (iPhone)
@@ -65,7 +65,7 @@ async function getDecoder() {
     try {
       const fm = await window.BarcodeDetector.getSupportedFormats();
       if (fm.includes('qr_code')) {
-        const det = new window.BarcodeDetector({ formats: ['qr_code', 'code_128'].filter(f => fm.includes(f)) });
+        const det = new window.BarcodeDetector({ formats: ['qr_code', 'data_matrix', 'code_128'].filter(f => fm.includes(f)) });
         return (scanDecoder = { name: 'navegador', read: async src => (await det.detect(src)).map(b => b.rawValue).filter(Boolean) });
       }
     } catch { /* usa o jsQR */ }
@@ -100,7 +100,7 @@ function onScanText(texts, live = false) {
   if (!p && found.length) {
     if (live) {
       if (!scanRgSince) scanRgSince = Date.now();
-      if (Date.now() - scanRgSince < SCAN_RG_WAIT) { scanStatus('Li o QR do RG. Procurando o QR completo…'); return false; }
+      if (Date.now() - scanRgSince < SCAN_RG_WAIT) { scanStatus('Li o código do RG. Procurando o QR completo…'); return false; }
     }
     p = found[0];
   }
@@ -127,7 +127,7 @@ async function openScan() {
     return scanStatus(window.isSecureContext ? 'Este navegador não dá acesso à câmera. Use “Tirar foto da etiqueta” ou digite o RG.' : 'A câmera ao vivo só funciona em endereço seguro (https). Use “Tirar foto da etiqueta” ou digite o RG.', 'err');
   }
   try {
-    scanStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+    scanStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
   } catch (e) {
     $('scanBox').classList.add('off');
     return scanStatus(e && e.name === 'NotAllowedError' ? 'A câmera foi bloqueada. Libere a câmera para este site nas permissões do navegador, ou use “Tirar foto da etiqueta” / digite o RG.' : 'Não foi possível abrir a câmera deste aparelho. Use “Tirar foto da etiqueta” ou digite o RG.', 'err');
@@ -167,7 +167,7 @@ function closeEtiqueta() { etqSeq++; $('etqModal').classList.add('hidden'); etqC
 function fillEtiquetaLabel(p) {
   const box = $('etqLabel'); box.replaceChildren();
   box.append(etqLine('RG', p.rg));
-  if (p.kind !== 'qr') { box.append(etqLine('Origem', p.via === 'qr' ? 'QR do RG (os outros dados vêm do Protheus)' : 'RG digitado (sem os dados do QR)', 'wide')); return; }
+  if (p.kind !== 'qr') { box.append(etqLine('Origem', p.via === 'qr' ? 'Código do RG (os outros dados vêm do Protheus)' : 'RG digitado (sem os dados do QR)', 'wide')); return; }
   box.append(etqLine('Código do produto', p.produto), etqLine('Peso líquido', kg(p.pesoLiq)), etqLine('OP', p.op), etqLine('Partida', p.partida));
   const raw = document.createElement('p'); raw.className = 'etq-raw'; raw.textContent = `Código lido: ${p.raw}`; box.append(raw);
 }
@@ -175,7 +175,7 @@ async function showEtiqueta(p) {
   const my = ++etqSeq;
   etqCtx = { p, rows: [], row: null, info: null };
   $('etqTitle').textContent = `RG ${p.rg}`;
-  $('etqSub').textContent = p.kind === 'qr' ? 'Etiqueta lida pelo QR code' : p.via === 'qr' ? 'Etiqueta lida pelo QR do RG' : 'RG digitado';
+  $('etqSub').textContent = p.kind === 'qr' ? 'Etiqueta lida pelo QR code' : p.via === 'qr' ? 'Etiqueta lida pelo código do RG' : 'RG digitado';
   $('etqDesc').textContent = 'Consultando o Protheus…'; $('etqCode').textContent = p.produto || '';
   fillEtiquetaLabel(p);
   const st = $('etqStock'); st.replaceChildren();
