@@ -202,6 +202,41 @@ async function lookupGroup(code, log) {
   return res;
 }
 
+// Rolo pelo RG (leitura do QR da etiqueta). RG = Z5_SERIE + Z5_NUMERO. Não filtra peso nem armazém,
+// para mostrar onde o rolo está mesmo se já estiver zerado ou em outro armazém.
+// 1) pela série e número; 2) se não achar, pelos rolos com peso do produto lido na etiqueta.
+async function findRoll(q) {
+  const clean = v => safeCode(v).replace(/[^A-Z0-9]/g, '');
+  const serie = clean(q.serie).slice(0, 6), numero = clean(q.numero).slice(0, 12), rg = clean(q.rg) || serie + numero;
+  const prods = String(q.prods || '').split(',').map(clean).filter(c => /^[A-Z0-9]{12}$/.test(c)).slice(0, 3);
+  if (rg.length < 4) throw httpError('RG inválido.', 400);
+  const attempts = [];
+  const run = async (label, where, opts = {}) => {
+    const t = Date.now();
+    try { const r = await fetchAll({ tables: 'SZ5', fields: SZ5_FIELDS, where }, { timeoutMs: Math.min(API_TIMEOUT_MS, 45000), maxPages: 20, adaptive: true, ...opts }); attempts.push({ label, rows: r.rows.length, ms: Date.now() - t }); return r.rows; }
+    catch (e) { if (e.status === 401 || e.status === 403) throw e; attempts.push({ label, error: String(e.message).slice(0, 200), ms: Date.now() - t }); return null; }
+  };
+  const noZeros = v => v.replace(/^0+(?=.)/, '');
+  const same = r => {
+    const s = clean(field(r, 'Z5_SERIE')), n = clean(field(r, 'Z5_NUMERO'));
+    return s + n === rg || (serie && s === serie && noZeros(n) === noZeros(numero)) || noZeros(n) === rg;
+  };
+  let rows = [];
+  if (serie && numero) rows = ((await run('SZ5 pelo RG', `Z5_SERIE = '${serie}' AND Z5_NUMERO LIKE '%${numero}%'`, { maxPages: 2 })) || []).filter(same);
+  if (!rows.length) rows = ((await run('SZ5 pelo número do RG', `Z5_NUMERO LIKE '%${rg}%'`, { maxPages: 2 })) || []).filter(same);
+  for (const p of prods) {
+    if (rows.length) break;
+    rows = ((await run(`SZ5 do produto ${p}`, `Z5_PESOATU > 0 AND Z5_PROD = '${p}'`)) || []).filter(same);
+  }
+  const peso = r => parseNumber(field(r, 'Z5_PESOATU')) || 0;
+  rows.sort((a, b) => peso(b) - peso(a));   // primeiro o registro com peso
+  const code = clean(rows[0] ? field(rows[0], 'Z5_PROD') : prods[0] || '');
+  let lk = null;
+  if (code) { try { lk = await lookupGroup(code, () => {}); } catch (e) { if (e.status === 401 || e.status === 403) throw e; } }
+  return { rg, rows, product: { code, description: (lk && (lk.productDesc || lk.groupDesc)) || '' }, lookup: lk ? { group: lk.group, groupDesc: lk.groupDesc, gramIdeal: lk.gramIdeal } : null, attempts,
+    failed: !rows.length && attempts.length > 0 && attempts.every(a => a.error) };
+}
+
 // Sugestões de produto enquanto o usuário digita: cadastro SB1 pelo começo do código e/ou por palavras do nome
 // (cada palavra precisa aparecer na descrição, em qualquer ordem). Consultas pequenas, guardadas em memória.
 const SUGGEST_LIMIT = 30, SUGGEST_TIMEOUT_MS = 20000, suggestCache = new Map();
@@ -482,6 +517,7 @@ async function handle(path, options = {}) {
     const groups = [...r.groups.values()].sort((a, b) => a.group.localeCompare(b.group));
     return { groups, withGramatura: groups.filter(g => g.gramatura).length, cached: r.cached, truncated: !!r.truncated, loadedAt: r.at };
   }
+  if (p.endsWith('/api/rg')) { need(); const g = k => url.searchParams.get(k) || ''; return findRoll({ rg: g('rg'), serie: g('serie'), numero: g('numero'), prods: g('prods') }); }
   if (p.endsWith('/api/suggest')) { need(); return suggestProducts(url.searchParams.get('q')); }
   if (p.endsWith('/api/stock') || p.endsWith('/api/products')) {
     need();

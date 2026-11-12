@@ -997,3 +997,46 @@ th.num-cell,td.num-cell{text-align:right}
   .sg-desc{font-size:13px}
   .suggest-pop{max-height:52vh}
 }
+
+/* ---------- leitura da etiqueta (QR code) ---------- */
+.scan-btn{margin-top:10px}
+#scanModal,#etqModal{z-index:37}
+.scan-modal{width:min(460px,100%)}
+.scan-box{position:relative;margin-top:14px;border-radius:14px;overflow:hidden;background:#05070f;aspect-ratio:4/3}
+.scan-box.off{display:none}
+.scan-box video{width:100%;height:100%;object-fit:cover;display:block}
+.scan-frame{position:absolute;left:50%;top:50%;width:58%;aspect-ratio:1;transform:translate(-50%,-50%);border:3px solid rgba(255,255,255,.9);border-radius:16px;box-shadow:0 0 0 2000px rgba(5,7,15,.35);pointer-events:none}
+.scan-status{margin:10px 0 0;min-height:18px;font-size:12.5px;line-height:1.4;color:var(--muted)}
+.scan-status.err{color:var(--bad)}
+.scan-manual{margin-top:12px;padding-top:12px;border-top:1px solid var(--line-2)}
+.scan-manual label{display:block;margin-bottom:6px;font-size:11px;font-weight:650;color:var(--muted)}
+.scan-manual-row{display:flex;gap:8px}
+.scan-manual-row input{flex:1;min-width:0;height:42px;padding:0 12px;border:1.5px solid var(--field-line);border-radius:9px;background:var(--field);color:var(--ink);font-family:Consolas,"Courier New",monospace;font-size:15px;letter-spacing:.06em;text-transform:uppercase;outline:none}
+.scan-manual-row input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--focus)}
+.scan-manual-row .primary{height:42px;padding:0 18px}
+.etq-modal{width:min(640px,100%);max-height:calc(100vh - 44px);overflow:auto}
+.etq-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.etq-block{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);min-width:0}
+.etq-block h3{margin:0 0 6px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.etq-lines div:first-child{border-top:0;padding-top:0}
+.etq-lines strong{word-break:break-word}
+.etq-raw{margin:8px 0 0;font-family:Consolas,"Courier New",monospace;font-size:10.5px;line-height:1.35;color:var(--muted);word-break:break-all}
+.etq-wait{display:flex;align-items:center;gap:8px;margin:0;font-size:12.5px;line-height:1.4;color:var(--muted)}
+.etq-warn{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--bad-bg);border:1px solid var(--bad-line);color:var(--bad);font-size:12.5px;line-height:1.4}
+.etq-warn p{margin:0}.etq-warn p+p{margin-top:5px}
+.etq-actions{flex-wrap:wrap}
+.baixa-use-label{display:block;margin:8px 0 0;padding:6px 0;font-size:12.5px}
+@media(max-width:720px){
+  .scan-modal,.etq-modal{width:100%;margin-top:auto;border-radius:16px 16px 0 0;padding:20px 16px max(16px,env(safe-area-inset-bottom));max-height:94vh}
+  .etq-cols{grid-template-columns:1fr}
+  .etq-modal .priority-actions>.primary{flex:1 1 100%;height:48px;font-size:14px;order:-1}
+  .etq-modal .priority-actions .spacer{display:none}
+  .etq-modal .priority-actions>.secondary{flex:1;height:42px;padding:0 8px}
+  .scan-modal .priority-actions .secondary{height:42px}
+}
+.scan-modal,.etq-modal{border-top-color:var(--accent)}
+.etq-baixa{margin-top:12px;padding:12px 14px 0;border:1px solid var(--ok-line);border-radius:12px;background:var(--ok-row)}
+.etq-baixa h3{margin:0 0 8px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ok)}
+.etq-baixa .baixa-fields{margin-top:0}
+.etq-baixa .baixa-hint{margin:6px 0 0}
+.etq-baixa .etq-actions{margin:12px -14px 0;padding:12px 14px;border-top:1px solid var(--ok-line);background:var(--surface);border-radius:0 0 12px 12px}

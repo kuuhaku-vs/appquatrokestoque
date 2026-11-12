@@ -64,6 +64,7 @@
     </div>
     <div id="codeSuggest" class="suggest hidden" role="listbox" aria-label="Sugestões de produto"></div>
     <button id="codeBtn" class="primary big-btn" type="submit" disabled>Pesquisar <b>→</b></button>
+    <button type="button" id="scanBtn" class="secondary big-btn folders-btn scan-btn">📷 Ler etiqueta (QR code)</button>
     <button type="button" id="foldersBtn" class="secondary big-btn folders-btn">📁 Pastas</button>
     <div class="history-link-wrap"><button type="button" id="openHistory" class="link-btn hidden">🕘 Ver histórico de pesquisas</button></div>
   </form>
@@ -203,11 +204,48 @@
         <div class="field"><label for="baixaPeso">Peso para baixa (kg)</label><input id="baixaPeso" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
         <div class="field"><label for="baixaMc">MC</label><input id="baixaMc" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
       </div>
+      <button id="baixaUseLabel" class="link-btn baixa-use-label hidden" type="button"></button>
       <p id="baixaHint" class="baixa-hint"></p>
       <div id="baixaError" class="form-error hidden" role="alert"></div>
       <div class="priority-actions"><button id="baixaUnpick" class="secondary baixa-undo hidden" type="button">↩ Não peguei</button><span class="spacer"></span><button id="baixaCancel" class="text-button" type="button">Cancelar</button><button id="baixaSave" class="primary" type="submit">✓ Salvar baixa</button></div>
     </div>
   </form>
+</section>
+<!-- leitura da etiqueta do rolo (QR code) -->
+<section id="scanModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
+  <div class="defect-modal scan-modal">
+    <div class="modal-heading"><div><span class="section-kicker">ETIQUETA DO ROLO</span><h2 id="scanTitle">Ler QR code</h2><p>Aponte a câmera para o QR code da etiqueta.</p></div><button id="closeScan" class="close-results" type="button" aria-label="Fechar">×</button></div>
+    <div id="scanBox" class="scan-box"><video id="scanVideo" playsinline muted autoplay></video><span class="scan-frame" aria-hidden="true"></span></div>
+    <p id="scanStatus" class="scan-status" role="status" aria-live="polite"></p>
+    <form id="scanForm" class="scan-manual" novalidate>
+      <label for="scanRg">Ou digite o RG da etiqueta</label>
+      <div class="scan-manual-row"><input id="scanRg" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="60" placeholder="Ex.: FPF9164"><button class="primary" type="submit">Buscar</button></div>
+    </form>
+    <div class="priority-actions"><button id="scanPhotoBtn" class="secondary" type="button">🖼 Tirar foto da etiqueta</button><input id="scanFile" type="file" accept="image/*" capture="environment" class="hidden"><span class="spacer"></span><button id="scanCancel" class="text-button" type="button">Fechar</button></div>
+  </div>
+</section>
+<section id="etqModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="etqTitle">
+  <div class="defect-modal etq-modal">
+    <div class="modal-heading"><div><span class="section-kicker">ETIQUETA LIDA</span><h2 id="etqTitle">RG</h2><p id="etqSub"></p></div><button id="closeEtq" class="close-results" type="button" aria-label="Fechar">×</button></div>
+    <div class="baixa-product"><span>PRODUTO</span><b id="etqDesc"></b><small id="etqCode"></small></div>
+    <div class="etq-cols">
+      <div class="etq-block"><h3>Na etiqueta (QR code)</h3><div id="etqLabel" class="ask-lines etq-lines"></div></div>
+      <div class="etq-block"><h3>No Protheus (estoque)</h3><div id="etqStock" class="ask-lines etq-lines"></div></div>
+    </div>
+    <div id="etqWarn" class="etq-warn hidden" role="alert"></div>
+    <!-- baixa do peso direto nesta janela -->
+    <form id="etqForm" class="etq-baixa" novalidate>
+      <h3>Baixa do peso</h3>
+      <div class="baixa-fields">
+        <div class="field"><label for="etqPeso">Peso para baixa (kg)</label><input id="etqPeso" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
+        <div class="field"><label for="etqMc">MC</label><input id="etqMc" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
+      </div>
+      <button id="etqUseLabel" class="link-btn baixa-use-label hidden" type="button"></button>
+      <p class="baixa-hint">Digite só números: 8 = 0,08 · 80 = 0,80 · 148 = 1,48 · 1875 = 18,75. O MC é opcional.</p>
+      <div id="etqError" class="form-error hidden" role="alert"></div>
+      <div class="priority-actions etq-actions"><button id="etqAgain" class="secondary" type="button">📷 Ler outra</button><button id="etqStockBtn" class="secondary" type="button">🔍 Ver estoque do produto</button><span class="spacer"></span><button id="etqClose2" class="text-button" type="button">Fechar</button><button id="etqBaixa" class="primary" type="submit">✓ Salvar baixa</button></div>
+    </form>
+  </div>
 </section>
 <section id="phoneModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="phoneTitle">
   <div class="phone-modal">
@@ -238,7 +276,7 @@
     <div id="folderView" class="hidden">
       <div class="modal-heading"><div><button id="folderBack" class="link-btn back-link" type="button">← Pastas</button><h2 id="folderName"></h2><p id="folderSub"></p></div><button id="closeFolders2" class="close-results" type="button" aria-label="Fechar">×</button></div>
       <div class="folder-progress"><div id="folderBar"></div></div>
-      <div class="folder-tools"><div class="seg" role="group" aria-label="Mostrar"><button type="button" data-show="todo" class="on">A pegar</button><button type="button" data-show="all">Todas</button><button type="button" data-show="done">Pegas</button><button type="button" data-show="baixas">Baixas</button></div><div class="folder-tools-right"><button id="folderClear" class="secondary" type="button" title="Tirar OPs desta pasta">🧹 Limpar</button><button id="folderSearch" class="secondary" type="button">🔍 Pesquisar</button></div></div>
+      <div class="folder-tools"><div class="seg" role="group" aria-label="Mostrar"><button type="button" data-show="todo" class="on">A pegar</button><button type="button" data-show="all">Todas</button><button type="button" data-show="done">Pegas</button><button type="button" data-show="baixas">Baixas</button></div><div class="folder-tools-right"><button id="folderClear" class="secondary" type="button" title="Tirar OPs desta pasta">🧹 Limpar</button><button id="folderScan" class="secondary" type="button" title="Ler o QR code da etiqueta e dar baixa do peso">📷 Ler QR</button><button id="folderSearch" class="secondary" type="button">🔍 Pesquisar</button></div></div>
       <div id="folderClearBox" class="clear-box hidden" role="group" aria-labelledby="folderClearTitle">
         <b id="folderClearTitle">Limpar a pasta</b>
         <p id="folderClearInfo"></p>
@@ -265,5 +303,6 @@
 <script src="protheus.js"></script>
 <script src="renderer.js"></script>
 <script src="relatorio.js"></script>
+<script src="etiqueta.js"></script>
 <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body></html>

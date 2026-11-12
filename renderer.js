@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const NOVA_VERSION = '12/11 10:40';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
+const NOVA_VERSION = '12/11 11:50';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -774,7 +774,7 @@ function fmtDay(ts) { const d = new Date(ts); return !ts || isNaN(d) ? '' : d.to
 async function openFolders() {
   $('folderView').classList.add('hidden'); $('foldersList').classList.remove('hidden');
   $('folderPickMsg').classList.toggle('hidden', !folderPickPending);
-  if (folderPickPending) $('folderPickMsg').textContent = 'Escolha a pasta onde salvar esta OP, ou crie uma nova.';
+  if (folderPickPending) $('folderPickMsg').textContent = typeof folderPickPending === 'function' ? 'Escolha a pasta que vai receber a baixa do RG lido, ou crie uma nova.' : 'Escolha a pasta onde salvar esta OP, ou crie uma nova.';
   renderFoldersList();
   $('foldersModal').classList.remove('hidden');
   if (folderPickPending) $('newFolderName').focus();
@@ -858,9 +858,9 @@ function renderFoldersList() {
     const os = opStats(f); const m = document.createElement('span'); m.textContent = `${os.done} de ${os.ops} OP(s) pegas${f.createdBy ? ' · ' + f.createdBy : ''} · ${fmtDay(f.createdAt)}`;
     const bar = document.createElement('i'); bar.className = 'mini-bar'; bar.style.setProperty('--p', os.ops ? (os.done / os.ops * 100).toFixed(0) + '%' : '0%');
     info.append(n, m, bar);
-    info.onclick = () => { if (folderPickPending) { folderPickPending = null; closeFolders(); saveGroupTo(f.id); } else openFolder(f.id); };
+    info.onclick = () => { if (folderPickPending) { const pend = folderPickPending; folderPickPending = null; closeFolders(); typeof pend === 'function' ? pend(f.id) : saveGroupTo(f.id); } else openFolder(f.id); };
     card.append(info);
-    if (folderPickPending) { const b = document.createElement('button'); b.type = 'button'; b.className = 'primary'; b.textContent = 'Salvar aqui'; b.onclick = info.onclick; card.append(b); }
+    if (folderPickPending) { const b = document.createElement('button'); b.type = 'button'; b.className = 'primary'; b.textContent = typeof folderPickPending === 'function' ? 'Usar esta pasta' : 'Salvar aqui'; b.onclick = info.onclick; card.append(b); }
     box.append(card);
   });
 }
@@ -881,7 +881,7 @@ async function createFolder(name) {
   if (!ok || !id) return;
   $('newFolderName').value = '';
   updateFolderUi();
-  if (folderPickPending) { folderPickPending = null; closeFolders(); return saveGroupTo(id); }
+  if (folderPickPending) { const pend = folderPickPending; folderPickPending = null; closeFolders(); return typeof pend === 'function' ? pend(id) : saveGroupTo(id); }
   closeFolders();
   // pasta criada: volta para a pesquisa perguntando o código
   if (document.body.dataset.view !== 'search') goSearch(); else { $('codeInput').value = ''; updateCodeInput(); $('codeInput').focus(); }
@@ -1245,6 +1245,7 @@ function openBaixa(folderId, it, r) {
 function baixaStep(n, othersCount = 0) {
   const { r } = baixaCtx;
   baixaError('');
+  $('baixaUseLabel').classList.add('hidden');   // atalho "peso da etiqueta": só aparece quando a baixa vem da leitura do QR
   $('baixaStep1').classList.toggle('hidden', n !== 1);
   $('baixaStep2').classList.toggle('hidden', n !== 2);
   if (n === 1) {
