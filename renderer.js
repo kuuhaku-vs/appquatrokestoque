@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const NOVA_VERSION = '12/11 10:30';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
+const NOVA_VERSION = '12/11 10:40';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -1479,7 +1479,7 @@ async function searchPunho() {
   try {
     const [d] = await Promise.all([api(`/api/stock?code=${encodeURIComponent(code)}`, {}, SEARCH_TIMEOUT_MS), loadDefects().catch(() => {})]);
     const rows = Array.isArray(d.rows) ? d.rows : [];
-    if (!rows.length) { message(`Nenhum rolo de punho ${code} com estoque nos armazéns 01/93.`, 'error'); return; }
+    if (!rows.length) { message(`Nenhum rolo de punho ${code} com estoque nos armazéns 01/93/98.`, 'error'); return; }
     const malha = { ...selected }, malhaRows = currentRows;
     punhoCtx = { malha, malhaRows, ops, malhaSelected: new Set(punhoSelected) };
     const desc = String(d.product?.description || '').trim();
@@ -1562,7 +1562,7 @@ async function search(codeArg, from = 'search') {
       const dg = d.diagnostic || {};
       const tried = (dg.attempts || []).map(a => `${a.label}: ${a.error ? 'erro' : a.rows + ' linha(s)'}`).join(' · ');
       let why;
-      if (dg.productExists > 0) why = `O código ${code} existe na SZ5, mas nenhuma posição tem peso atual > 0 nos armazéns 01/93.`;
+      if (dg.productExists > 0) why = `O código ${code} existe na SZ5, mas nenhuma posição tem peso atual > 0 nos armazéns 01/93/98.`;
       else if (dg.productExists === 0) why = `Nenhum registro na SZ5 para o código ${code}. Confira o código digitado.`;
       else why = 'A API respondeu sem linhas e não foi possível confirmar se o código existe.';
       message(`${why} Tentativas: ${tried || 'nenhuma'}.`, 'error');

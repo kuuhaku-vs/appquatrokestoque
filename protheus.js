@@ -88,6 +88,7 @@ function field(obj, name) {
 function safeCode(v) { return String(v || '').trim().toUpperCase().replace(/[\u0000-\u001f]/g, '').replace(/'/g, "''"); }
 
 
+const STOCK_WAREHOUSES = ['01', '93', '98'];   // armazéns que entram na consulta de estoque
 const SZ5_FIELDS = 'Z5_PROD,Z5_ALMOXA,Z5_SERIE,Z5_NUMERO,Z5_ENDEREC,Z5_PESOATU,Z5_CMC,Z5_GRAMATU,Z5_TONALID,Z5_OP,Z5_PARTIDA,Z5_DTENT,Z5_4KDTEND,Z5_DOCCQ,Z5_ROMAN,Z5_ULTATU';
 const KEY_FIELDS = ['Z5_PROD', 'Z5_ALMOXA', 'Z5_SERIE', 'Z5_NUMERO', 'Z5_ENDEREC', 'Z5_PARTIDA'];
 const rowKey = r => KEY_FIELDS.map(k => String(field(r, k) ?? '').trim()).join('|');
@@ -249,7 +250,8 @@ async function searchStock(code) {
       const a = { label, error: e.message, ms: Date.now() - t, slow: !!e.slow }; attempts.push(a); log(a); return null;
     }
   };
-  const stockWhere = cond => `Z5_PESOATU > 0 AND ${cond} AND (Z5_ALMOXA = '01' OR Z5_ALMOXA = '93')`;
+  // armazéns consultados: 01, 93 e 98 (lista em STOCK_WAREHOUSES)
+  const stockWhere = cond => `Z5_PESOATU > 0 AND ${cond} AND (${STOCK_WAREHOUSES.map(w => `Z5_ALMOXA = '${w}'`).join(' OR ')})`;
   const exact = `Z5_PROD = '${code}'`, prefix = `Z5_PROD LIKE '${code}%'`;
   // grupo/descrição: consulta pequena, em paralelo com a busca de estoque
   const lookupLog = (label, msg, ms) => { const a = { label, ms, ...(String(msg).startsWith('ERRO') ? { error: String(msg) } : { rows: parseInt(msg, 10) || 0 }) }; attempts.push(a); log(a); };
@@ -259,7 +261,7 @@ async function searchStock(code) {
   // 1) SZ5 pelo código exato. Três formatos de consulta, do mais completo ao mais simples:
   //    A) filtros completos no where; B) só o código no where (estoque/armazém filtrados aqui);
   //    C) todos os campos (só se a API recusou campos, não se apenas demorou).
-  const inStock = r => (parseNumber(field(r, 'Z5_PESOATU')) || 0) > 0 && ['01', '93'].includes(String(field(r, 'Z5_ALMOXA')).trim());
+  const inStock = r => (parseNumber(field(r, 'Z5_PESOATU')) || 0) > 0 && STOCK_WAREHOUSES.includes(String(field(r, 'Z5_ALMOXA')).trim());
   const BASE_TIMEOUT = Math.min(API_TIMEOUT_MS, 60000);
   let base = null, usedFields = SZ5_FIELDS, mode = 'exata', onlyProductWhere = false;
   const plan = [
