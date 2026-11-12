@@ -7,6 +7,9 @@
 //   prefixo | série do RG (letras em código ASCII: 70=F, 80=P) | número do RG | dígito | peso líquido em centésimos (1,48 kg)
 //   | código do produto (letras em ASCII: 77=M → 1MM010900010) | OP | partida
 // Descrição, armazém, endereço, peso atual, gramatura etc. não estão no QR: vêm do Protheus (SZ5) pelo RG.
+//
+// A etiqueta tem também um QR pequeno só com o RG: "QR" + RG (ex.: QRFPF9164 → RG FPF9164).
+// Ele serve de reserva quando o QR completo não está legível: produto, peso, OP e partida vêm do Protheus.
 
 const JSQR_URL = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';   // leitor de QR para navegadores sem leitor próprio (iPhone)
 const asciiLetter = p => { const n = Number(p); return n >= 65 && n <= 90 ? String.fromCharCode(n) : ''; };
@@ -29,7 +32,9 @@ function decodeProduto(enc) {
 function parseEtiqueta(text) {
   const raw = String(text || '').trim();
   const plain = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if (/^[A-Z]{1,4}\d{3,9}$/.test(plain)) return { kind: 'rg', raw, rg: plain, serie: plain.replace(/\d+$/, ''), numero: plain.replace(/^[A-Z]+/, ''), produtos: [], pesoLiq: null, op: '', partida: '' };
+  const qrRg = /^QR([A-Z]{3,4}\d{3,9})$/.exec(plain);   // QR pequeno da etiqueta: "QR" + RG
+  const rg = qrRg ? qrRg[1] : plain;
+  if (/^[A-Z]{1,4}\d{3,9}$/.test(rg)) return { kind: 'rg', via: qrRg ? 'qr' : 'manual', raw, rg, serie: rg.replace(/\d+$/, ''), numero: rg.replace(/^[A-Z]+/, ''), produtos: [], pesoLiq: null, op: '', partida: '' };
   if (!/^\d{42,60}$/.test(raw)) return null;
   const serie = [raw.slice(2, 4), raw.slice(4, 6), raw.slice(6, 8)].map(asciiLetter).join('');
   if (serie.length !== 3) return null;
@@ -41,7 +46,8 @@ function parseEtiqueta(text) {
 }
 
 /* ------------------------------ câmera / leitura ------------------------------ */
-let scanStream = null, scanTimer = null, scanOn = false, scanDecoder = null, scanLastBad = '', jsqrLoading = null;
+let scanStream = null, scanTimer = null, scanOn = false, scanDecoder = null, scanLastBad = '', jsqrLoading = null, scanRgSince = 0;
+const SCAN_RG_WAIT = 1200;   // câmera: ao ver só o QR do RG, espera um pouco pelo QR completo (que traz mais dados)
 function loadJsQR() {
   if (window.jsQR) return Promise.resolve(window.jsQR);
   if (!jsqrLoading) jsqrLoading = new Promise((res, rej) => {
@@ -87,11 +93,18 @@ function stopCamera() {
 }
 function closeScan() { stopCamera(); $('scanModal').classList.add('hidden'); }
 // texto lido: se for etiqueta de rolo, mostra as informações; senão avisa e continua lendo
-function onScanText(texts) {
-  for (const t of texts) {
-    const p = parseEtiqueta(t);
-    if (p) { try { navigator.vibrate && navigator.vibrate(70); } catch { /* sem vibração */ } closeScan(); showEtiqueta(p); return true; }
+// O QR completo tem preferência; o QR pequeno (só o RG) vale quando o completo não aparece.
+function onScanText(texts, live = false) {
+  const found = texts.map(parseEtiqueta).filter(Boolean);
+  let p = found.find(x => x.kind === 'qr');
+  if (!p && found.length) {
+    if (live) {
+      if (!scanRgSince) scanRgSince = Date.now();
+      if (Date.now() - scanRgSince < SCAN_RG_WAIT) { scanStatus('Li o QR do RG. Procurando o QR completo…'); return false; }
+    }
+    p = found[0];
   }
+  if (p) { try { navigator.vibrate && navigator.vibrate(70); } catch { /* sem vibração */ } closeScan(); showEtiqueta(p); return true; }
   const t = String(texts[0] || '');
   if (t && t !== scanLastBad) { scanLastBad = t; scanStatus(`Li um código, mas não é etiqueta de rolo: “${t.slice(0, 40)}${t.length > 40 ? '…' : ''}”. Aponte para o QR da etiqueta.`, 'err'); }
   return false;
@@ -99,13 +112,13 @@ function onScanText(texts) {
 async function scanLoop() {
   if (!scanOn) return;
   const v = $('scanVideo');
-  try { if (v.readyState >= 2 && v.videoWidth) { const r = await scanDecoder.read(v); if (!scanOn) return; if (r.length && onScanText(r)) return; } }
+  try { if (v.readyState >= 2 && v.videoWidth) { const r = await scanDecoder.read(v); if (!scanOn) return; if (r.length && onScanText(r, true)) return; } }
   catch { /* quadro ruim: tenta o próximo */ }
   scanTimer = setTimeout(scanLoop, 160);
 }
 async function openScan() {
   if (!connected) return goLogin('Entre no Protheus antes de ler a etiqueta.');
-  clearMessage(); scanLastBad = '';
+  clearMessage(); scanLastBad = ''; scanRgSince = 0;
   $('scanRg').value = ''; $('scanModal').classList.remove('hidden');
   $('scanBox').classList.remove('off');
   scanStatus('Abrindo a câmera…');
@@ -154,7 +167,7 @@ function closeEtiqueta() { etqSeq++; $('etqModal').classList.add('hidden'); etqC
 function fillEtiquetaLabel(p) {
   const box = $('etqLabel'); box.replaceChildren();
   box.append(etqLine('RG', p.rg));
-  if (p.kind !== 'qr') { box.append(etqLine('Origem', 'RG digitado (sem os dados do QR)', 'wide')); return; }
+  if (p.kind !== 'qr') { box.append(etqLine('Origem', p.via === 'qr' ? 'QR do RG (os outros dados vêm do Protheus)' : 'RG digitado (sem os dados do QR)', 'wide')); return; }
   box.append(etqLine('Código do produto', p.produto), etqLine('Peso líquido', kg(p.pesoLiq)), etqLine('OP', p.op), etqLine('Partida', p.partida));
   const raw = document.createElement('p'); raw.className = 'etq-raw'; raw.textContent = `Código lido: ${p.raw}`; box.append(raw);
 }
@@ -162,7 +175,7 @@ async function showEtiqueta(p) {
   const my = ++etqSeq;
   etqCtx = { p, rows: [], row: null, info: null };
   $('etqTitle').textContent = `RG ${p.rg}`;
-  $('etqSub').textContent = p.kind === 'qr' ? 'Etiqueta lida pelo QR code' : 'RG digitado';
+  $('etqSub').textContent = p.kind === 'qr' ? 'Etiqueta lida pelo QR code' : p.via === 'qr' ? 'Etiqueta lida pelo QR do RG' : 'RG digitado';
   $('etqDesc').textContent = 'Consultando o Protheus…'; $('etqCode').textContent = p.produto || '';
   fillEtiquetaLabel(p);
   const st = $('etqStock'); st.replaceChildren();
