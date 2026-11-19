@@ -946,14 +946,17 @@ async function clearFolderAction(onlyPicked) {
 // A OP conta como "pega" quando tem pelo menos 1 RG marcado (normalmente basta uma malha).
 const folderOpenOps = new Set();
 const opPicked = it => it.rolos.filter(r => r.picked);
-function opStats(f) { const done = f.items.filter(it => opPicked(it).length).length; return { ops: f.items.length, done, todo: f.items.length - done }; }
+// pilotagem pedida por vários pedidos (PIL|...): um RG por pedido; as demais OPs: basta 1 RG
+const pilNeed = it => { if (!/^PIL\|/.test(it.key || '')) return 1; const m = String(it.status || '').match(/PV\s+([\d,\s]+)/); return Math.max(1, m ? m[1].split(',').map(x => x.trim()).filter(Boolean).length : 1); };
+const opDone = it => opPicked(it).length >= Math.min(pilNeed(it), it.rolos.length);
+function opStats(f) { const done = f.items.filter(opDone).length; return { ops: f.items.length, done, todo: f.items.length - done }; }
 // ordem alfabética: descrição do item, depois código, OP e partida; RGs em ordem numérica
 const ptCmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'pt-BR', { sensitivity: 'base', numeric: true });
 const sortItems = items => [...items].sort((a, b) => ptCmp(a.descricao || a.produto, b.descricao || b.produto) || ptCmp(a.produto, b.produto) || ptCmp(a.op, b.op) || ptCmp(a.partida, b.partida));
 const sortRolos = rolos => [...rolos].sort((a, b) => ptCmp(a.rg, b.rg) || ptCmp(a.endereco, b.endereco));
 const pickedRolls = f => sortItems(f.items).flatMap(it => sortRolos(it.rolos).filter(r => r.picked).map(r => ({ it, r })));
 const hasVal = v => v !== null && v !== undefined && v !== '';
-const opHasBaixa = it => it.rolos.some(r => r.picked && hasVal(r.pesoBaixa));
+const opHasBaixa = it => { const p = opPicked(it); return p.length > 0 && p.every(r => hasVal(r.pesoBaixa)); };   // todos os RGs pegos já têm peso
 function folderSubText(f) { const s = opStats(f); return `${s.done} de ${s.ops} OP(s) pegas${isShared() ? ' · compartilhada' : ' · só neste aparelho'}`; }
 function renderFolder() {
   const d = readFolders(), f = folderById(d, folderOpenId);
@@ -976,7 +979,7 @@ function renderFolder() {
   const byProd = new Map();
   sortItems(f.items).forEach(it => {
     const has = opPicked(it).length > 0, keep = folderOpenOps.has(it.key); // OP aberta continua na tela até fechar
-    if (folderShow === 'todo' && has && !keep) return;
+    if (folderShow === 'todo' && opDone(it) && !keep) return;   // pilotagem de vários pedidos fica em "A pegar" até ter um RG por pedido
     if (folderShow === 'done' && (!has || opHasBaixa(it)) && !keep) return;
     if (!byProd.has(it.produto)) byProd.set(it.produto, []);
     byProd.get(it.produto).push(it);
@@ -1219,21 +1222,22 @@ function enderecosDe(it) {
 }
 function opRow(f, it) {
   const picked = opPicked(it), open = folderOpenOps.has(it.key), bad = /^DEFEITO/.test(it.status || '');
-  const wrap = document.createElement('div'); wrap.className = 'fo' + (picked.length ? ' done' : '') + (open ? ' open' : '') + (bad ? ' bad' : '');
+  const need = Math.min(pilNeed(it), it.rolos.length), falta = picked.length < need;   // falta escolher RG (pilotagem com vários pedidos)
+  const wrap = document.createElement('div'); wrap.className = 'fo' + (picked.length && !falta ? ' done' : '') + (open ? ' open' : '') + (bad ? ' bad' : '');
   const row = document.createElement('button'); row.type = 'button'; row.className = 'fo-row'; row.setAttribute('aria-expanded', String(open));
   row.title = open ? 'Fechar a seleção de RG' : 'Escolher o RG que pegou';
-  const box = document.createElement('span'); box.className = 'fo-box'; box.textContent = picked.length ? '✓' : '';
+  const box = document.createElement('span'); box.className = 'fo-box' + (picked.length && falta ? ' part' : ''); box.textContent = picked.length ? (falta ? `${picked.length}/${need}` : '✓') : '';
   const main = document.createElement('span'); main.className = 'fo-main';
   // item enviado pelo app de Pedidos: um por produto (PIL|...) ou do modelo antigo (PV ...): mostra os pedidos no lugar da OP
   const pil = isPilItem(it), pv = pil || /^PV /.test(it.status || '');
   const op = document.createElement('b'); op.textContent = pv ? it.status : `OP ${it.op || '—'} · ${it.partida || '—'}`;
   const ad = document.createElement('small');
-  ad.textContent = pil && !picked.length ? enderecosDe(it).map(e => `${e.ad} (${e.rolos.length} RG${e.rolos.length === 1 ? '' : 's'})`).join(' · ')
+  ad.textContent = pil && falta ? enderecosDe(it).map(e => `${e.ad} (${e.rolos.length} RG${e.rolos.length === 1 ? '' : 's'})`).join(' · ')
     : (bad ? '✕ ' + it.status.replace(/^DEFEITO:\s*/, '') + ' · ' : '') + (it.enderecos ? it.enderecos.split(' - ').join(' · ') : 'sem endereço');
   main.append(op, ad);
   const side = document.createElement('span'); side.className = 'fo-side';
   const baixaKg = picked.reduce((t, r) => t + (Number(r.pesoBaixa) || 0), 0);
-  side.textContent = picked.length ? picked.map(r => r.rg).join(', ') + (baixaKg ? ` · ${fmtNum(baixaKg, 2)} kg` : '') : pil ? `${enderecosDe(it).length} endereço${enderecosDe(it).length === 1 ? '' : 's'}` : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
+  side.textContent = picked.length && !(pil && falta && folderShow !== 'done') ? picked.map(r => r.rg).join(', ') + (baixaKg ? ` · ${fmtNum(baixaKg, 2)} kg` : '') : pil ? (need > 1 ? `${picked.length} de ${need} RGs · ` : '') + `${enderecosDe(it).length} endereço${enderecosDe(it).length === 1 ? '' : 's'}` : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
   const chev = document.createElement('span'); chev.className = 'fo-chev'; chev.textContent = '›';
   row.append(box, main, side, chev);
   const pegaMode = folderShow === 'done' && picked.length;
@@ -1266,15 +1270,16 @@ function opRow(f, it) {
       b.onclick = () => openBaixa(f.id, it, r);
       return b;
     };
-    if (pil && !picked.length) {
+    if (pil && falta) {
       // pilotagem vinda dos pedidos: endereços clicáveis; cada um abre os RGs que estão nele para escolher qual pegar
-      hint.textContent = 'Toque no endereço para ver os RGs e escolha o que vai pegar:';
+      hint.textContent = need > 1 ? `São ${need} pedidos deste artigo: escolha ${need} RGs, um por pedido (${picked.length} de ${need}). Toque no endereço para ver os RGs:` : 'Toque no endereço para ver os RGs e escolha o que vai pegar:';
       grid.className = 'end-list';
       enderecosDe(it).forEach(e => {
         const k = it.key + '@' + e.ad, aberto = folderOpenAddr.has(k);
         const eb = document.createElement('button'); eb.type = 'button'; eb.className = 'end-btn' + (aberto ? ' on' : ''); eb.setAttribute('aria-expanded', String(aberto));
         const n = document.createElement('b'); n.textContent = e.ad;
-        const c = document.createElement('small'); c.textContent = `${e.rolos.length} RG${e.rolos.length === 1 ? '' : 's'} · ${fmtNum(e.rolos.reduce((t, r) => t + (Number(r.peso) || 0), 0), 2)} kg`;
+        const pe = e.rolos.filter(r => r.picked).length;
+        const c = document.createElement('small'); c.textContent = `${e.rolos.length} RG${e.rolos.length === 1 ? '' : 's'} · ${fmtNum(e.rolos.reduce((t, r) => t + (Number(r.peso) || 0), 0), 2)} kg${pe ? ` · ✓ ${pe} pego${pe === 1 ? '' : 's'}` : ''}`;
         const ch = document.createElement('span'); ch.className = 'end-chev'; ch.textContent = '›';
         eb.append(n, c, ch);
         eb.onclick = () => { aberto ? folderOpenAddr.delete(k) : folderOpenAddr.add(k); renderFolder(); };
@@ -1303,10 +1308,14 @@ function openBaixa(folderId, it, r) {
   const others = it.rolos.filter(x => x !== r && !(x.rg === r.rg && x.endereco === r.endereco));
   // RG ainda não confirmado: só confirma a coleta (os outros RGs da OP saem da pasta).
   // O peso para baixa é informado depois, tocando na OP na aba Pegas.
-  if (!r.picked) return baixaStep(1, others.length);
+  if (!r.picked) {
+    const need = Math.min(pilNeed(it), it.rolos.length), ja = opPicked(it).length;
+    if (ja + 1 < need) return baixaStep(1, 0, need - ja - 1);   // ainda faltam RGs: os outros continuam na pasta
+    return baixaStep(1, others.filter(x => !x.picked).length);
+  }
   baixaStep(2);
 }
-function baixaStep(n, othersCount = 0) {
+function baixaStep(n, othersCount = 0, faltam = 0) {
   const { r } = baixaCtx;
   baixaError('');
   $('baixaUseLabel').classList.add('hidden');   // atalho "peso da etiqueta": só aparece quando a baixa vem da leitura do QR
@@ -1314,7 +1323,9 @@ function baixaStep(n, othersCount = 0) {
   $('baixaStep2').classList.toggle('hidden', n !== 2);
   if (n === 1) {
     $('baixaKicker').textContent = 'CONFIRMAR COLETA';
-    $('baixaConfirmText').textContent = othersCount
+    $('baixaConfirmText').textContent = faltam
+      ? `Você pegou este rolo? Ainda falta${faltam === 1 ? '' : 'm'} ${faltam} RG(s) para os pedidos deste artigo: os outros RGs continuam na pasta até completar.`
+      : othersCount
       ? `Você pegou este rolo? Os outros ${othersCount} RG(s) sugeridos saem da pasta. O peso é informado depois, na aba Pegas.`
       : 'Você pegou este rolo? O peso é informado depois, na aba Pegas.';
   } else {
@@ -1337,23 +1348,27 @@ async function confirmPickedRg() {
   if (!baixaCtx) return;
   const { folderId, key, r, it } = baixaCtx;
   const btn = $('baixaConfirm'); btn.disabled = true;
+  // pilotagem de vários pedidos: enquanto faltar RG, os outros continuam; ao completar, ficam só os pegos
+  const need = Math.min(pilNeed(it), it.rolos.length), parcial = opPicked(it).length + 1 < need;
   const keepOnly = d => { const f = folderById(d, folderId), x = f && f.items.find(y => y.key === key); if (!x) return null;
     const rr = x.rolos.find(y => y.rg === r.rg && y.endereco === r.endereco); if (!rr) return null;
-    rr.picked = true; rr.pickedAt = rr.pickedAt || Date.now(); rr.pickedBy = rr.pickedBy || currentUser || ''; x.rolos = [rr]; f.updatedAt = Date.now(); return rr; };
+    rr.picked = true; rr.pickedAt = rr.pickedAt || Date.now(); rr.pickedBy = rr.pickedBy || currentUser || ''; if (!parcial) x.rolos = x.rolos.filter(y => y.picked); f.updatedAt = Date.now(); return rr; };
+  const enviar = parcial ? it.rolos.map(y => (y.rg === r.rg && y.endereco === r.endereco ? { ...y, picked: true } : y)) : [...it.rolos.filter(y => y.picked && !(y.rg === r.rg && y.endereco === r.endereco)), { ...r, picked: true }];
   try {
     if (isShared()) {
       const c = lsGet(FCACHE_KEY, { folders: [] }); const rr = keepOnly(c); lsSet(FCACHE_KEY, c);
       folderBusy = true;
-      try { await remote('saveItem', { folderId, item: { ...it, rolos: [{ ...r, picked: true }] } }); }
+      try { await remote('saveItem', { folderId, item: { ...it, rolos: enviar } }); }
       catch (e) { message(`${e.message} O RG não foi confirmado.`, 'error'); await syncFolders(true); closeBaixa(); return; }
       finally { folderBusy = false; }
       if (rr) baixaCtx.r = rr;
     } else {
       const d = readFolders(); const rr = keepOnly(d); writeFolders(d); if (rr) baixaCtx.r = rr;
     }
-    folderOpenOps.delete(key);
+    if (!parcial) folderOpenOps.delete(key);
     closeBaixa();
     rerenderFolders(); updateSaveBtn();
+    if (parcial) return message(`RG ${r.rg} confirmado (${opPicked(it).length + 1} de ${need}). Escolha o próximo RG para os outros pedidos.`, 'success');
     message(`RG ${r.rg} confirmado. Para informar o peso, toque em ${isPilItem(it) ? it.descricao || it.produto : /^PV /.test(it.status || '') ? it.status.split(' · ')[0] : 'OP ' + it.op} na aba Pegas.`, 'success');
   } finally { btn.disabled = false; }
 }
