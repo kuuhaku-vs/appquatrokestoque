@@ -879,6 +879,8 @@ th.num-cell,td.num-cell{text-align:right}
 .bx-main{display:flex;flex-direction:column;gap:2px}
 .bx-rg{font-size:14px;font-weight:750;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bx-sub{font-size:11px;line-height:1.3;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:normal;word-break:break-word}
+.bx-oldscript{margin:10px 0 0;padding:9px 12px;border:1px solid var(--warn-line);border-radius:10px;background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:600;line-height:1.4}
+.bx-oldscript.hidden{display:none}
 .bx-tags{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:3px}
 .bx-tag{display:inline-block;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:750;letter-spacing:.02em;line-height:1.35;white-space:nowrap;border:1px solid}
 .bx-tag.pilot{background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}

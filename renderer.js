@@ -1012,6 +1012,9 @@ function setTipoUI(px, r) {
   $(px + 'Obs').value = obsOf(r);
 }
 const readTipoUI = px => ({ pilotagem: $(px + 'Pilot').checked, bandeira: $(px + 'Band').checked, obsBaixa: cleanObs($(px + 'Obs').value) });
+// planilha da equipe com o script antigo: a lista volta sem o campo obsBaixa, ou seja, tipo e observação não ficam gravados
+const oldScriptTipo = () => isShared() && (lsGet(FCACHE_KEY, { folders: [] }).folders || []).some(f => (f.items || []).some(it => (it.rolos || []).some(r => r.picked && !('obsBaixa' in r))));
+const OLD_SCRIPT_MSG = '⚠ A planilha da equipe está com o script antigo: Pilotagem, Bandeira e Observação não ficam gravados. No Apps Script, cole o PLANILHA_PASTAS_Code.gs novo, coloque o código em CHAVE, salve e vá em Implantar → Gerenciar implantações → ✏️ → Versão: Nova versão → Implantar.';
 function tipoDisable(px, off) { ['Pilot', 'Band', 'Obs'].forEach(id => { $(px + id).disabled = off; }); }
 function renderBaixas(f, body) {
   const list = baixaRolls(f);
@@ -1022,6 +1025,7 @@ function renderBaixas(f, body) {
   const pr = document.createElement('button'); pr.type = 'button'; pr.className = 'secondary'; pr.textContent = '🖨 Imprimir'; pr.onclick = () => togglePrintOpts(f, body);
   const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'secondary'; cp.textContent = '📋 Copiar lista'; cp.onclick = () => copyBaixas(f);
   acts.append(info, pr, cp); body.append(acts);
+  if (oldScriptTipo()) { const w = document.createElement('div'); w.className = 'bx-oldscript'; w.setAttribute('role', 'alert'); w.textContent = OLD_SCRIPT_MSG; body.append(w); }
   const tbl = document.createElement('div'); tbl.className = 'bx-table';
   const head = document.createElement('div'); head.className = 'bx-row bx-head';
   ['', 'RG · Produto', 'Armazém', 'Peso (kg)', 'MC', ''].forEach((x, k) => {
@@ -1280,6 +1284,7 @@ function baixaStep(n, othersCount = 0) {
     $('baixaPeso').value = has ? fmtNum(Number(r.pesoBaixa), 2) : '';   // vem vazio: digita só o que vai baixar
     $('baixaMc').value = r.picked && hasVal(r.mc) && parseNumber(r.mc) !== null ? fmtNum(r.mc, 2, 2) : '';   // MC no mesmo formato do peso
     setTipoUI('baixa', r.picked ? r : null);
+    const ow = $('baixaOldScript'); if (ow) { ow.textContent = OLD_SCRIPT_MSG; ow.classList.toggle('hidden', !oldScriptTipo()); }
     $('baixaHint').textContent = 'Confira o produto e digite só números no peso e no MC: 8 = 0,08 · 80 = 0,80 · 180 = 1,80 · 1875 = 18,75. Para zerar o MC, digite 0. Com o peso, o RG vai para a aba Baixas.' + (r.picked && r.pickedBy ? ` Pego por ${r.pickedBy}.` : '');
     $('baixaUnpick').classList.toggle('hidden', !r.picked);
     $('baixaSave').textContent = has ? '✓ Atualizar baixa' : '✓ Salvar baixa';
