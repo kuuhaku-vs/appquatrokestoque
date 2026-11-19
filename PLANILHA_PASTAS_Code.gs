@@ -25,7 +25,7 @@ const HR = ['pasta_id', 'pasta', 'item_key', 'produto', 'descricao', 'op', 'part
             'peso_baixa', 'mc',              // baixa a fazer no RG coletado (Peso Total e MC)
             'baixado', 'baixado_por', 'baixado_em',    // baixa já efetuada no Protheus
             'pilotagem', 'bandeira', 'obs_baixa',      // tipo da baixa (pode ser os dois) e observação
-            'peso_pilotagem', 'peso_bandeira'];        // com os dois tipos: peso de cada corte (a soma é o peso_baixa)
+            'mc_pilotagem', 'mc_bandeira'];            // com os dois tipos: MC de cada corte (a soma é o mc)
 const C = HR.reduce((o, h, i) => (o[h] = i, o), {});
 
 function doGet(e) { return handle_((e && e.parameter) || {}); }
@@ -125,7 +125,7 @@ function list_() {
       pesoBaixa: num(x[C.peso_baixa]), mc: x[C.mc] || '',
       baixado: x[C.baixado] === 'sim', baixadoBy: x[C.baixado_por], baixadoAt: Date.parse(x[C.baixado_em]) || null,
       pilotagem: x[C.pilotagem] === 'sim', bandeira: x[C.bandeira] === 'sim', obsBaixa: x[C.obs_baixa] || '',
-      pesoPil: num(x[C.peso_pilotagem]), pesoBand: num(x[C.peso_bandeira]) });
+      mcPil: num(x[C.mc_pilotagem]), mcBand: num(x[C.mc_bandeira]) });
   });
   folders.forEach(f => { f.updatedAt = Math.max(f.createdAt, ...f.items.map(i => i.savedAt), ...f.items.flatMap(i => i.rolos.map(r => r.pickedAt || 0))); });
   return folders;
@@ -182,8 +182,8 @@ function saveItem_(folderId, item, user) {
     row[C.pilotagem] = hadTipo ? o[C.pilotagem] : (r.pilotagem ? 'sim' : '');
     row[C.bandeira] = hadTipo ? o[C.bandeira] : (r.bandeira ? 'sim' : '');
     row[C.obs_baixa] = hadTipo ? o[C.obs_baixa] : obs_(r.obsBaixa);
-    row[C.peso_pilotagem] = picked ? (o && o[C.peso_pilotagem] ? o[C.peso_pilotagem] : s_(r.pesoPil).replace('.', ',')) : '';
-    row[C.peso_bandeira] = picked ? (o && o[C.peso_bandeira] ? o[C.peso_bandeira] : s_(r.pesoBand).replace('.', ',')) : '';
+    row[C.mc_pilotagem] = picked ? (o && o[C.mc_pilotagem] ? o[C.mc_pilotagem] : s_(r.mcPil).replace('.', ',')) : '';
+    row[C.mc_bandeira] = picked ? (o && o[C.mc_bandeira] ? o[C.mc_bandeira] : s_(r.mcBand).replace('.', ',')) : '';
     keep.push(row);
   });
   rewrite_(sr, HR.length, keep);
@@ -212,8 +212,8 @@ function setPicked_(folderId, key, rg, endereco, picked, user, pesoBaixa, mc, b)
   sr.getRange(i + 2, C.peso_baixa + 1, 1, 2).setNumberFormat('@').setValues([[picked ? s_(pesoBaixa).replace('.', ',') : '', picked ? s_(mc).slice(0, 30) : '']]);
   // tipo da baixa (Pilotagem e/ou Bandeira) e observação
   sr.getRange(i + 2, C.pilotagem + 1, 1, 3).setNumberFormat('@').setValues([[picked && b.pilotagem ? 'sim' : '', picked && b.bandeira ? 'sim' : '', picked ? obs_(b.obsBaixa) : '']]);
-  // peso de cada corte (só com Pilotagem + Bandeira)
-  sr.getRange(i + 2, C.peso_pilotagem + 1, 1, 2).setNumberFormat('@').setValues([[picked && b.pilotagem && b.bandeira ? s_(b.pesoPil).replace('.', ',') : '', picked && b.pilotagem && b.bandeira ? s_(b.pesoBand).replace('.', ',') : '']]);
+  // MC de cada corte (só com Pilotagem + Bandeira)
+  sr.getRange(i + 2, C.mc_pilotagem + 1, 1, 2).setNumberFormat('@').setValues([[picked && b.pilotagem && b.bandeira ? s_(b.mcPil).replace('.', ',') : '', picked && b.pilotagem && b.bandeira ? s_(b.mcBand).replace('.', ',') : '']]);
   if (!picked) sr.getRange(i + 2, C.baixado + 1, 1, 3).setNumberFormat('@').setValues([['', '', '']]);
 }
 // caixa "baixa efetuada": marca que a baixa do RG já foi feita no Protheus

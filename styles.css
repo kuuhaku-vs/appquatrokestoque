@@ -454,6 +454,7 @@ th.num-cell,td.num-cell{text-align:right}
 .split-info.hidden{display:none}
 .split-line{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
 .split-part{display:inline-flex;align-items:center;gap:4px}
+.split-lab{font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--ok);margin-right:2px}
 .split-part b{color:var(--ink)}
 .split-line strong{color:var(--ok);font-weight:800}
 .split-edit.btn-soft{height:30px;padding:0 10px;font-size:11.5px}
