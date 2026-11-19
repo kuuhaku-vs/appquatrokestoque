@@ -436,6 +436,14 @@ th.num-cell,td.num-cell{text-align:right}
 .fo-panel{padding:0 14px 12px 50px}
 .fo-hint{margin:0 0 8px;font-size:11px;color:var(--muted)}
 .rg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}
+.end-list{display:flex;flex-direction:column;gap:6px}
+.end-btn{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;width:100%;padding:11px 12px;border:1px solid var(--accent-line);border-radius:10px;background:var(--accent-soft);color:var(--ink);text-align:left;cursor:pointer}
+.end-btn b{font-size:15px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.end-btn small{font-size:12px;color:var(--ink-2)}
+.end-chev{font-size:18px;line-height:1;color:var(--accent);transition:transform .15s}
+.end-btn.on .end-chev{transform:rotate(90deg)}
+.end-btn:hover{border-color:var(--accent)}
+.end-rgs{margin:0 0 6px 10px;padding-left:10px;border-left:2px solid var(--accent-line)}
 .rg-chip{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface);text-align:left;color:var(--ink)}
 .rg-chip b{font-size:13px;font-variant-numeric:tabular-nums}
 .rg-chip small{font-size:10.5px;color:var(--muted)}

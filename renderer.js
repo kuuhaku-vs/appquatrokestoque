@@ -1208,6 +1208,15 @@ async function setBaixado(folderId, key, r, baixado) {
     const d = readFolders(), f = apply(d); if (f) f.updatedAt = Date.now(); writeFolders(d); renderFolder();
   }
 }
+// pilotagens enviadas pelo app de Pedidos: um item por produto, RGs agrupados por endereço (mais RGs primeiro)
+const isPilItem = it => /^PIL\|/.test(it.key || '');
+const folderOpenAddr = new Set();
+function enderecosDe(it) {
+  const m = new Map();
+  (it.rolos || []).forEach(r => { const ad = r.endereco || 'sem endereço'; if (!m.has(ad)) m.set(ad, { ad, rolos: [] }); m.get(ad).rolos.push(r); });
+  const ordem = String(it.enderecos || '').split(' - ');
+  return [...m.values()].sort((a, b) => b.rolos.length - a.rolos.length || ordem.indexOf(a.ad) - ordem.indexOf(b.ad));
+}
 function opRow(f, it) {
   const picked = opPicked(it), open = folderOpenOps.has(it.key), bad = /^DEFEITO/.test(it.status || '');
   const wrap = document.createElement('div'); wrap.className = 'fo' + (picked.length ? ' done' : '') + (open ? ' open' : '') + (bad ? ' bad' : '');
@@ -1215,13 +1224,16 @@ function opRow(f, it) {
   row.title = open ? 'Fechar a seleção de RG' : 'Escolher o RG que pegou';
   const box = document.createElement('span'); box.className = 'fo-box'; box.textContent = picked.length ? '✓' : '';
   const main = document.createElement('span'); main.className = 'fo-main';
-  const pv = /^PV /.test(it.status || '');   // item enviado pelo app de Pedidos: mostra o pedido no lugar da OP
+  // item enviado pelo app de Pedidos: um por produto (PIL|...) ou do modelo antigo (PV ...): mostra os pedidos no lugar da OP
+  const pil = isPilItem(it), pv = pil || /^PV /.test(it.status || '');
   const op = document.createElement('b'); op.textContent = pv ? it.status : `OP ${it.op || '—'} · ${it.partida || '—'}`;
-  const ad = document.createElement('small'); ad.textContent = (bad ? '✕ ' + it.status.replace(/^DEFEITO:\s*/, '') + ' · ' : '') + (it.enderecos ? it.enderecos.split(' - ').join(' · ') : 'sem endereço');
+  const ad = document.createElement('small');
+  ad.textContent = pil && !picked.length ? enderecosDe(it).map(e => `${e.ad} (${e.rolos.length} RG${e.rolos.length === 1 ? '' : 's'})`).join(' · ')
+    : (bad ? '✕ ' + it.status.replace(/^DEFEITO:\s*/, '') + ' · ' : '') + (it.enderecos ? it.enderecos.split(' - ').join(' · ') : 'sem endereço');
   main.append(op, ad);
   const side = document.createElement('span'); side.className = 'fo-side';
   const baixaKg = picked.reduce((t, r) => t + (Number(r.pesoBaixa) || 0), 0);
-  side.textContent = picked.length ? picked.map(r => r.rg).join(', ') + (baixaKg ? ` · ${fmtNum(baixaKg, 2)} kg` : '') : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
+  side.textContent = picked.length ? picked.map(r => r.rg).join(', ') + (baixaKg ? ` · ${fmtNum(baixaKg, 2)} kg` : '') : pil ? `${enderecosDe(it).length} endereço${enderecosDe(it).length === 1 ? '' : 's'}` : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
   const chev = document.createElement('span'); chev.className = 'fo-chev'; chev.textContent = '›';
   row.append(box, main, side, chev);
   const pegaMode = folderShow === 'done' && picked.length;
@@ -1237,7 +1249,7 @@ function opRow(f, it) {
     const grid = document.createElement('div'); grid.className = 'rg-grid';
     const shown = picked.length ? sortRolos(picked) : sortRolos(it.rolos);   // depois de identificar o RG, fica só ele
     if (picked.length) hint.textContent = picked.some(r => hasVal(r.pesoBaixa)) ? 'RG coletado (toque para corrigir a baixa):' : 'RG coletado. Toque nele para informar o peso da baixa:';
-    shown.forEach(r => {
+    const rgChip = r => {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'rg-chip' + (r.picked ? ' on' : '');
       b.setAttribute('aria-pressed', String(!!r.picked));
       const a = document.createElement('b'); a.textContent = (r.picked ? '✓ ' : '') + (r.rg || '—');
@@ -1252,11 +1264,27 @@ function opRow(f, it) {
         b.append(bx);
       }
       b.onclick = () => openBaixa(f.id, it, r);
-      grid.append(b);
-    });
+      return b;
+    };
+    if (pil && !picked.length) {
+      // pilotagem vinda dos pedidos: endereços clicáveis; cada um abre os RGs que estão nele para escolher qual pegar
+      hint.textContent = 'Toque no endereço para ver os RGs e escolha o que vai pegar:';
+      grid.className = 'end-list';
+      enderecosDe(it).forEach(e => {
+        const k = it.key + '@' + e.ad, aberto = folderOpenAddr.has(k);
+        const eb = document.createElement('button'); eb.type = 'button'; eb.className = 'end-btn' + (aberto ? ' on' : ''); eb.setAttribute('aria-expanded', String(aberto));
+        const n = document.createElement('b'); n.textContent = e.ad;
+        const c = document.createElement('small'); c.textContent = `${e.rolos.length} RG${e.rolos.length === 1 ? '' : 's'} · ${fmtNum(e.rolos.reduce((t, r) => t + (Number(r.peso) || 0), 0), 2)} kg`;
+        const ch = document.createElement('span'); ch.className = 'end-chev'; ch.textContent = '›';
+        eb.append(n, c, ch);
+        eb.onclick = () => { aberto ? folderOpenAddr.delete(k) : folderOpenAddr.add(k); renderFolder(); };
+        grid.append(eb);
+        if (aberto) { const g2 = document.createElement('div'); g2.className = 'rg-grid end-rgs'; sortRolos(e.rolos).forEach(r => g2.append(rgChip(r))); grid.append(g2); }
+      });
+    } else shown.forEach(r => grid.append(rgChip(r)));
     const foot = document.createElement('div'); foot.className = 'fo-foot';
     const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'link-btn danger-link'; rm.textContent = 'Tirar da pasta';
-    rm.onclick = async () => { if (!(await askOk({ tone: 'danger', kicker: 'TIRAR DA PASTA', title: `Tirar a OP ${it.op} da pasta "${f.name}"?`, card: { label: 'PRODUTO', title: it.descricao || it.produto, lines: [['Código', it.produto], ['RGs', String(it.rolos.length)]] }, okText: 'Tirar da pasta' }))) return; folderOpenOps.delete(it.key); await removeItemFrom(f.id, it.key); updateSaveBtn(); };
+    rm.onclick = async () => { if (!(await askOk({ tone: 'danger', kicker: 'TIRAR DA PASTA', title: pv ? `Tirar ${it.descricao || it.produto} da pasta "${f.name}"?` : `Tirar a OP ${it.op} da pasta "${f.name}"?`, card: { label: 'PRODUTO', title: it.descricao || it.produto, lines: [['Código', it.produto], ['RGs', String(it.rolos.length)]] }, okText: 'Tirar da pasta' }))) return; folderOpenOps.delete(it.key); await removeItemFrom(f.id, it.key); updateSaveBtn(); };
     const close = document.createElement('button'); close.type = 'button'; close.className = 'link-btn'; close.textContent = 'Fechar';
     close.onclick = () => { folderOpenOps.delete(it.key); renderFolder(); };
     foot.append(rm, close);
@@ -1326,7 +1354,7 @@ async function confirmPickedRg() {
     folderOpenOps.delete(key);
     closeBaixa();
     rerenderFolders(); updateSaveBtn();
-    message(`RG ${r.rg} confirmado. Para informar o peso, toque em ${/^PV /.test(it.status || '') ? it.status.split(' · ')[0] : 'OP ' + it.op} na aba Pegas.`, 'success');
+    message(`RG ${r.rg} confirmado. Para informar o peso, toque em ${isPilItem(it) ? it.descricao || it.produto : /^PV /.test(it.status || '') ? it.status.split(' · ')[0] : 'OP ' + it.op} na aba Pegas.`, 'success');
   } finally { btn.disabled = false; }
 }
 // Peso para baixa: digita só números e eles entram como centésimos — 80 vira 0,80; 180 vira 1,80; 1875 vira 18,75
@@ -1378,7 +1406,12 @@ async function restoreOpRolls(folderId, key, it) {
   try {
     const d = await api(`/api/stock?code=${encodeURIComponent(it.produto)}`, {}, SEARCH_TIMEOUT_MS);
     const groups = groupRows(Array.isArray(d.rows) ? d.rows : []);
-    if (/ \/ /.test(it.op || '') || /^PV /.test(it.status || '')) {
+    if (isPilItem(it)) {
+      // pilotagem dos pedidos: volta com os RGs dos endereços indicados
+      const ends = String(it.enderecos || '').split(' - ').filter(Boolean);
+      const rows = groups.flatMap(x => x.rows).filter(r => ends.includes(addrOf(r)));
+      if (rows.length) g = { ...groups[0], rows };
+    } else if (/ \/ /.test(it.op || '') || /^PV /.test(it.status || '')) {
       // item do app de Pedidos: os RGs sugeridos podem ser de OPs diferentes; junta os rolos dessas OPs
       const ops = String(it.op || '').split(' / ').map(x => x.trim()).filter(Boolean);
       const hit = groups.filter(x => ops.includes(String(x.op).trim()));
@@ -1390,7 +1423,7 @@ async function restoreOpRolls(folderId, key, it) {
   if (!g) return message(`Coleta desfeita. Os outros RGs da OP ${it.op} não estão mais no estoque.`, 'info');
   const snap = snapshotGroup(g);
   const keepTipo = it.rolos[0] ? { pilotagem: !!it.rolos[0].pilotagem, bandeira: !!it.rolos[0].bandeira, obsBaixa: obsOf(it.rolos[0]) } : {};   // tipo/obs que vieram do pedido
-  const item = { ...it, key, rolos: snap.rolos.map(x => ({ ...x, picked: false, ...keepTipo })), enderecos: snap.enderecos, savedAt: Date.now() };
+  const item = { ...it, key, rolos: snap.rolos.map(x => ({ ...x, picked: false, ...keepTipo })), enderecos: isPilItem(it) ? it.enderecos : snap.enderecos, savedAt: Date.now() };
   const ok = await folderOp(
     () => remote('saveItem', { folderId, item }),
     () => { const dd = readFolders(), f = folderById(dd, folderId); if (!f) return false; const i = f.items.findIndex(x => x.key === key);
