@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#0d2f50"><title>NOVA | Consulta de Estoque</title>
 <script>try{if(localStorage.getItem('nova_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <!-- ?v=: mude o número junto com o CACHE do sw.js a cada atualização, para o celular nunca misturar arquivo novo com antigo -->
-<link rel="stylesheet" href="styles.css?v=202611191500">
+<link rel="stylesheet" href="styles.css?v=202611191510">
 </head>
 <body>
 <button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
@@ -206,7 +206,7 @@
     <!-- etapa 1: confirmar o RG coletado (os outros RGs da OP saem da pasta) -->
     <div id="baixaStep1" class="hidden">
       <p id="baixaConfirmText" class="baixa-confirm"></p>
-      <div class="priority-actions bxm-actions"><button id="baixaNotFound" class="link-btn baixa-undo hidden" type="button" title="O rolo não está no endereço: tira da sugestão e avisa a equipe">✕ Não encontrei</button><span class="spacer"></span><button id="baixaCancel1" class="text-button" type="button">Cancelar</button><button id="baixaConfirm" class="primary" type="button">✓ Confirmar RG</button></div>
+      <div class="priority-actions bxm-actions"><button id="baixaNotFound" class="secondary bx-notfound hidden" type="button" title="O rolo não está no endereço: tira da sugestão e avisa a equipe"><span aria-hidden="true">✕</span> Não encontrei</button><span class="spacer"></span><button id="baixaCancel1" class="text-button" type="button">Cancelar</button><button id="baixaConfirm" class="primary" type="button">✓ Confirmar RG</button></div>
     </div>
     <!-- etapa 2: peso, MC, tipo e observação -->
     <div id="baixaStep2">
@@ -324,10 +324,10 @@
     <div class="priority-actions"><button id="clearHistory" class="text-button danger" type="button">Limpar histórico</button><span class="spacer"></span><button id="historyClose2" class="secondary" type="button">Fechar</button></div>
   </div>
 </section>
-<script src="config.js?v=202611191500"></script>
-<script src="protheus.js?v=202611191500"></script>
-<script src="renderer.js?v=202611191500"></script>
-<script src="relatorio.js?v=202611191500"></script>
-<script src="etiqueta.js?v=202611191500"></script>
+<script src="config.js?v=202611191510"></script>
+<script src="protheus.js?v=202611191510"></script>
+<script src="renderer.js?v=202611191510"></script>
+<script src="relatorio.js?v=202611191510"></script>
+<script src="etiqueta.js?v=202611191510"></script>
 <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body></html>
