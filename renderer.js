@@ -1230,11 +1230,12 @@ function opRow(f, it) {
   const main = document.createElement('span'); main.className = 'fo-main';
   // item enviado pelo app de Pedidos: um por produto (PIL|...) ou do modelo antigo (PV ...): mostra os pedidos no lugar da OP
   const pil = isPilItem(it), pv = pil || /^PV /.test(it.status || '');
-  const op = document.createElement('b'); op.textContent = pv ? it.status : `OP ${it.op || '—'} · ${it.partida || '—'}`;
+  const op = document.createElement('b'); op.textContent = pil ? pilStatusBase(it) : pv ? it.status : `OP ${it.op || '—'} · ${it.partida || '—'}`;
   const ad = document.createElement('small');
   ad.textContent = pil && falta ? enderecosDe(it).map(e => `${e.ad} (${e.rolos.length} RG${e.rolos.length === 1 ? '' : 's'})`).join(' · ')
     : (bad ? '✕ ' + it.status.replace(/^DEFEITO:\s*/, '') + ' · ' : '') + (it.enderecos ? it.enderecos.split(' - ').join(' · ') : 'sem endereço');
   main.append(op, ad);
+  if (pil && pilNotFound(it).length) { const nf = document.createElement('small'); nf.className = 'fo-nf'; nf.textContent = `✕ Não encontrado: ${pilNotFound(it).join(', ')}`; main.append(nf); }
   const side = document.createElement('span'); side.className = 'fo-side';
   const baixaKg = picked.reduce((t, r) => t + (Number(r.pesoBaixa) || 0), 0);
   side.textContent = picked.length && !(pil && falta && folderShow !== 'done') ? sortRolos(picked).map(r => r.rg).join(', ') + (baixaKg ? ` · ${fmtNum(baixaKg, 2)} kg` : '') : pil ? (need > 1 ? `${picked.length} de ${need} RGs · ` : '') + `${enderecosDe(it).length} endereço${enderecosDe(it).length === 1 ? '' : 's'}` : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
@@ -1323,6 +1324,7 @@ function baixaStep(n, othersCount = 0, faltam = 0) {
   $('baixaStep2').classList.toggle('hidden', n !== 2);
   if (n === 1) {
     $('baixaKicker').textContent = 'CONFIRMAR COLETA';
+    $('baixaNotFound').classList.toggle('hidden', !isPilItem(baixaCtx.it));   // só nas sugestões vindas dos pedidos
     $('baixaConfirmText').textContent = faltam
       ? `Você pegou este rolo? Ainda falta${faltam === 1 ? '' : 'm'} ${faltam} RG(s) para os pedidos deste artigo: os outros RGs continuam na pasta até completar.`
       : othersCount
@@ -1343,34 +1345,99 @@ function baixaStep(n, othersCount = 0, faltam = 0) {
   $('baixaModal').classList.remove('hidden');
   setTimeout(() => (n === 1 ? $('baixaConfirm') : $('baixaPeso')).focus(), 60);
 }
+// Marca o RG como pego no item (planilha ou aparelho). Pilotagem de vários pedidos: enquanto faltar RG, os outros
+// continuam; ao completar (ou numa OP comum), ficam só os pegos. Se o RG não estiver no item (ex.: lido pelo QR de outro
+// endereço), ele entra no item. Devolve { parcial, need, count, rr } ou lança erro.
+async function pickRoll(folderId, it, r) {
+  const key = it.key, same = y => sameRgAddr(y, r);
+  const rolos0 = it.rolos.some(same) ? it.rolos : [...it.rolos, { ...r, picked: false }];
+  const need = Math.min(pilNeed(it), rolos0.length), count = opPicked(it).length + (it.rolos.find(same)?.picked ? 0 : 1), parcial = count < need;
+  const apply = d => { const f = folderById(d, folderId), x = f && f.items.find(y => y.key === key); if (!x) return null;
+    if (!x.rolos.some(same)) x.rolos.push({ ...r });
+    const rr = x.rolos.find(same);
+    rr.picked = true; rr.pickedAt = rr.pickedAt || Date.now(); rr.pickedBy = rr.pickedBy || currentUser || ''; if (!parcial) x.rolos = x.rolos.filter(y => y.picked); f.updatedAt = Date.now(); return rr; };
+  const enviar = parcial ? rolos0.map(y => (same(y) ? { ...y, picked: true } : y)) : [...rolos0.filter(y => y.picked && !same(y)), { ...(rolos0.find(same) || r), picked: true }];
+  let rr = null;
+  if (isShared()) {
+    const c = lsGet(FCACHE_KEY, { folders: [] }); rr = apply(c); lsSet(FCACHE_KEY, c);
+    folderBusy = true;
+    try { await remote('saveItem', { folderId, item: { ...it, rolos: enviar } }); }
+    catch (e) { await syncFolders(true); throw e; }
+    finally { folderBusy = false; }
+  } else { const d = readFolders(); rr = apply(d); writeFolders(d); }
+  if (!parcial) folderOpenOps.delete(key);
+  rerenderFolders(); updateSaveBtn();
+  return { parcial, need, count, rr };
+}
+const sameRgAddr = (a, b) => String(a.rg || '').toUpperCase() === String(b.rg || '').toUpperCase() && String(a.endereco || '') === String(b.endereco || '');
+const itemLabel = it => isPilItem(it) ? `${pilStatusBase(it)} — ${it.descricao || it.produto}` : /^PV /.test(it.status || '') ? it.status.split(' · ')[0] : 'OP ' + it.op;
 // etapa 1 confirmada: o RG fica pego e os outros RGs da OP saem da pasta (na planilha e no aparelho)
 async function confirmPickedRg() {
   if (!baixaCtx) return;
-  const { folderId, key, r, it } = baixaCtx;
+  const { folderId, r, it } = baixaCtx;
   const btn = $('baixaConfirm'); btn.disabled = true;
-  // pilotagem de vários pedidos: enquanto faltar RG, os outros continuam; ao completar, ficam só os pegos
-  const need = Math.min(pilNeed(it), it.rolos.length), parcial = opPicked(it).length + 1 < need;
-  const keepOnly = d => { const f = folderById(d, folderId), x = f && f.items.find(y => y.key === key); if (!x) return null;
-    const rr = x.rolos.find(y => y.rg === r.rg && y.endereco === r.endereco); if (!rr) return null;
-    rr.picked = true; rr.pickedAt = rr.pickedAt || Date.now(); rr.pickedBy = rr.pickedBy || currentUser || ''; if (!parcial) x.rolos = x.rolos.filter(y => y.picked); f.updatedAt = Date.now(); return rr; };
-  const enviar = parcial ? it.rolos.map(y => (y.rg === r.rg && y.endereco === r.endereco ? { ...y, picked: true } : y)) : [...it.rolos.filter(y => y.picked && !(y.rg === r.rg && y.endereco === r.endereco)), { ...r, picked: true }];
   try {
-    if (isShared()) {
-      const c = lsGet(FCACHE_KEY, { folders: [] }); const rr = keepOnly(c); lsSet(FCACHE_KEY, c);
-      folderBusy = true;
-      try { await remote('saveItem', { folderId, item: { ...it, rolos: enviar } }); }
-      catch (e) { message(`${e.message} O RG não foi confirmado.`, 'error'); await syncFolders(true); closeBaixa(); return; }
-      finally { folderBusy = false; }
-      if (rr) baixaCtx.r = rr;
-    } else {
-      const d = readFolders(); const rr = keepOnly(d); writeFolders(d); if (rr) baixaCtx.r = rr;
-    }
-    if (!parcial) folderOpenOps.delete(key);
+    let res;
+    try { res = await pickRoll(folderId, it, r); }
+    catch (e) { message(`${e.message} O RG não foi confirmado.`, 'error'); closeBaixa(); return; }
+    if (res.rr) baixaCtx.r = res.rr;
     closeBaixa();
-    rerenderFolders(); updateSaveBtn();
-    if (parcial) return message(`RG ${r.rg} confirmado (${opPicked(it).length + 1} de ${need}). Escolha o próximo RG para os outros pedidos.`, 'success');
-    message(`RG ${r.rg} confirmado. Para informar o peso, toque em ${isPilItem(it) ? it.descricao || it.produto : /^PV /.test(it.status || '') ? it.status.split(' · ')[0] : 'OP ' + it.op} na aba Pegas.`, 'success');
+    if (res.parcial) return message(`RG ${r.rg} confirmado (${res.count} de ${res.need}). Escolha o próximo RG para os outros pedidos.`, 'success');
+    message(`RG ${r.rg} confirmado. Para informar o peso, toque em ${isPilItem(it) ? it.descricao || it.produto : itemLabel(it)} na aba Pegas.`, 'success');
   } finally { btn.disabled = false; }
+}
+
+/* ---------- "Não encontrei": o RG sugerido não está no endereço ---------- */
+// Tira o RG da sugestão (para todos, com a planilha), anota no item e avisa os celulares (ntfy, mesmo canal do app de Pedidos).
+// O app de Pedidos não sugere esse RG de novo. Se era o último RG, o NOVA procura no estoque outro endereço pela mesma regra.
+const pilNotFound = it => { const m = String(it.status || '').match(/NÃO ENCONTRADO:\s*([^·]+)/); return m ? m[1].split(',').map(t => t.trim()).filter(Boolean) : []; };
+const pilStatusBase = it => String(it.status || '').replace(/\s*·\s*NÃO ENCONTRADO:[^·]*/, '').trim();
+async function notFoundRoll() {
+  if (!baixaCtx) return;
+  const { folderId, r, it } = baixaCtx;
+  const ok = await askOk({ tone: 'warn', kicker: 'NÃO ENCONTREI', title: `O RG ${r.rg} não está no endereço ${r.endereco || ''}?`,
+    card: { label: 'PRODUTO', title: it.descricao || it.produto, lines: [['Código', it.produto], ['Pedido', pilStatusBase(it)]] },
+    note: `O RG sai da sugestão${isShared() ? ' para todos' : ''} e a equipe recebe um aviso no celular.`, okText: '✕ Não encontrei', cancelText: 'Voltar' });
+  if (!ok) return;
+  closeBaixa();
+  const nf = [...new Set([...pilNotFound(it), String(r.rg).toUpperCase()])];
+  let rolos = it.rolos.filter(y => !sameRgAddr(y, r)), enderecos = it.enderecos, novoEnd = false;
+  if (!rolos.length) {   // era o último: procura outro endereço no estoque (mais de 2 RGs; senão o mais cheio)
+    const alt = await sugerirEnderecos(it, nf).catch(() => null);
+    if (alt && alt.rolos.length) { rolos = alt.rolos; enderecos = alt.enderecos; novoEnd = true; }
+  }
+  const status = pilStatusBase(it) + ` · NÃO ENCONTRADO: ${nf.join(', ')}`;
+  const item = { ...it, status, enderecos, rolos };
+  const ok2 = rolos.length
+    ? await folderOp(() => remote('saveItem', { folderId, item }), () => { const d = readFolders(), f = folderById(d, folderId), i = f ? f.items.findIndex(x => x.key === it.key) : -1; if (i < 0) return false; f.items[i] = item; f.updatedAt = Date.now(); return writeFolders(d); })
+    : await removeItemFrom(folderId, it.key);
+  if (ok2 === false) return;
+  avisarEquipe(`✕ RG ${r.rg} não encontrado`, `${it.descricao || it.produto} · endereço ${r.endereco || '—'} · ${pilStatusBase(it)}${currentUser ? ' · por ' + currentUser : ''}${!rolos.length ? '\nSem outro rolo no estoque: o item saiu da pasta.' : novoEnd ? `\nNovo endereço sugerido: ${enderecos}` : ''}`);
+  message(!rolos.length ? `RG ${r.rg} marcado como não encontrado. Não há outro rolo deste artigo no estoque: o item saiu da pasta.`
+    : novoEnd ? `RG ${r.rg} marcado como não encontrado. Novo endereço sugerido: ${enderecos}.` : `RG ${r.rg} marcado como não encontrado e tirado da sugestão.`, 'info');
+}
+// mesma regra do app de Pedidos: endereços com mais de 2 RGs (até 3, os mais cheios); senão o endereço com mais RGs
+async function sugerirEnderecos(it, excluir = []) {
+  const d = await api(`/api/stock?code=${encodeURIComponent(it.produto)}`, {}, SEARCH_TIMEOUT_MS);
+  const rows = (Array.isArray(d.rows) ? d.rows : []).filter(row => ['01', '93'].includes(String(field(row, 'Z5_ALMOXA') ?? '').trim()) && (numericValue(field(row, 'Z5_PESOATU')) || 0) > 0
+    && !excluir.includes(rgOf(row).toUpperCase()) && !defectFor(row) && /(\d|^REC.*)$/i.test(addrOf(row)));
+  const por = new Map(); rows.forEach(row => { const ad = addrOf(row); if (!por.has(ad)) por.set(ad, []); por.get(ad).push(row); });
+  const ord = [...por.entries()].sort((a, b) => b[1].length - a[1].length || ptCmp(a[0], b[0]));
+  const cheios = ord.filter(([, l]) => l.length > 2), pick = cheios.length ? cheios.slice(0, 3) : ord.slice(0, 1);
+  const base = it.rolos[0] || {};
+  const tipo = { pilotagem: /^BANDEIRA/.test(it.status || '') ? false : true, bandeira: /^BANDEIRA/.test(it.status || ''), obsBaixa: obsOf(base) };
+  return { enderecos: pick.map(([ad]) => ad).join(' - '),
+    rolos: pick.flatMap(([, l]) => l).map(row => ({ rg: rgOf(row), endereco: addrOf(row), armazem: String(field(row, 'Z5_ALMOXA') ?? '').trim(), peso: numericValue(field(row, 'Z5_PESOATU')), gramatura: gramaturaValue(row), cmc: numericValue(field(row, 'Z5_CMC')), picked: false, ...tipo })) };
+}
+// aviso no celular: mesmo canal ntfy do app de Pedidos (vem do código da equipe)
+async function ntfyTopic() {
+  const base = teamKey(); if (!base) return '';
+  try { const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('pedidos4k|' + base)); return 'pedidos4k-' + [...new Uint8Array(h)].slice(0, 9).map(b => b.toString(16).padStart(2, '0')).join(''); }
+  catch { return 'pedidos4k-' + base.replace(/[^a-z0-9]/gi, '').slice(0, 24).toLowerCase(); }
+}
+async function avisarEquipe(title, msg) {
+  try { const topic = await ntfyTopic(); if (!topic) return; await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify({ topic, title, message: msg, tags: ['warning'], priority: 4 }) }); }
+  catch (e) { console.warn('ntfy', e); }
 }
 // Peso para baixa: digita só números e eles entram como centésimos — 80 vira 0,80; 180 vira 1,80; 1875 vira 18,75
 function maskPeso(v) {
@@ -2246,6 +2313,7 @@ $('baixaForm').onsubmit = saveBaixa;
 ['input', 'keyup', 'change', 'blur', 'compositionend'].forEach(ev => { $('baixaPeso').addEventListener(ev, onPesoInput); $('baixaMc').addEventListener(ev, onPesoInput); });
 $('closeBaixa').onclick = $('baixaCancel').onclick = $('baixaCancel1').onclick = closeBaixa;
 $('baixaConfirm').onclick = confirmPickedRg;
+$('baixaNotFound').onclick = notFoundRoll;
 $('baixaUnpick').onclick = unpickBaixa;
 // Pilotagem / Bandeira: cada uma liga e desliga sozinha (dá para marcar as duas)
 document.querySelectorAll('.tipo-opt input').forEach(el => el.addEventListener('change', () => el.closest('.tipo-opt').classList.toggle('on', el.checked)));

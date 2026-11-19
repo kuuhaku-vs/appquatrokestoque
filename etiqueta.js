@@ -171,7 +171,51 @@ function fillEtiquetaLabel(p) {
   box.append(etqLine('Código do produto', p.produto), etqLine('Peso líquido', kg(p.pesoLiq)), etqLine('OP', p.op), etqLine('Partida', p.partida));
   const raw = document.createElement('p'); raw.className = 'etq-raw'; raw.textContent = `Código lido: ${p.raw}`; box.append(raw);
 }
+/* ---------- pasta Pedidos: o RG lido é uma das sugestões? confirma a coleta direto ---------- */
+// procura nas pilotagens/bandeiras da pasta (aberta ou ativa) um item que ainda precisa de RG e tem este RG sugerido
+function pilForRg(rg) {
+  const fid = scanFolderId(), f = fid && folderById(readFolders(), fid); if (!f) return null;
+  for (const it of f.items) {
+    if (!isPilItem(it) || opDone(it)) continue;
+    const r = it.rolos.find(x => sameRg(x.rg, rg) && !x.picked);
+    if (r) return { f, it, r };
+  }
+  return null;
+}
+async function quickPilPick(p) {
+  const hit = pilForRg(p.rg); if (!hit) return false;
+  const { f, it, r } = hit;
+  try {
+    const res = await pickRoll(f.id, it, r);
+    message(`✓ RG ${r.rg} confirmado pelo QR · ${pilStatusBase(it)} — ${it.descricao || it.produto}` + (res.parcial ? ` (${res.count} de ${res.need}: falta${res.need - res.count === 1 ? '' : 'm'} ${res.need - res.count})` : '. Informe o peso na aba Pegas.'), 'success');
+    if (!$('foldersModal').classList.contains('hidden') && folderOpenId === f.id) renderFolder();
+  } catch (e) { message(`${e.message} O RG não foi confirmado.`, 'error'); }
+  return true;
+}
+// RG de outro endereço, mas do mesmo artigo de uma pilotagem/bandeira que ainda precisa de RG: oferece usar este
+function offerPilFor(info) {
+  const box = $('etqPil'); box.classList.add('hidden'); box.replaceChildren();
+  const fid = scanFolderId(), f = fid && folderById(readFolders(), fid); if (!f || !info.produto) return;
+  const it = f.items.find(x => isPilItem(x) && !opDone(x) && x.produto === info.produto && !x.rolos.some(r => sameRg(r.rg, info.rg)));
+  if (!it) return;
+  const falta = Math.min(pilNeed(it), Math.max(1, it.rolos.length)) - opPicked(it).length;
+  const t = document.createElement('p'); t.innerHTML = 'Este artigo está na pasta <b></b> e ainda falta RG. Este rolo não estava entre os sugeridos, mas pode ser usado.';
+  t.querySelector('b').textContent = `"${f.name}" · ${pilStatusBase(it)}${falta > 1 ? ` (faltam ${falta})` : ''}`;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'primary'; b.textContent = `✓ Pegar o RG ${info.rg} para este pedido`;
+  b.onclick = async () => {
+    b.disabled = true;
+    const base = it.rolos[0] || {};
+    const roll = { rg: info.rg, endereco: info.endereco || '', armazem: info.armazem || '', peso: info.peso ?? info.pesoLiq ?? null, gramatura: info.gramatura, cmc: info.cmc, picked: false, pilotagem: !!base.pilotagem, bandeira: !!base.bandeira, obsBaixa: obsOf(base) };
+    try {
+      const res = await pickRoll(f.id, it, roll);
+      closeEtiqueta();
+      message(`✓ RG ${info.rg} confirmado · ${pilStatusBase(it)}` + (res.parcial ? ` (${res.count} de ${res.need})` : '. Informe o peso na aba Pegas.'), 'success');
+    } catch (e) { b.disabled = false; message(`${e.message} O RG não foi confirmado.`, 'error'); }
+  };
+  box.append(t, b); box.classList.remove('hidden');
+}
 async function showEtiqueta(p) {
+  if (await quickPilPick(p)) return;   // RG sugerido numa pilotagem/bandeira da pasta: confirma sem abrir a janela
   const my = ++etqSeq;
   etqCtx = { p, rows: [], row: null, info: null };
   $('etqTitle').textContent = `RG ${p.rg}`;
@@ -180,7 +224,7 @@ async function showEtiqueta(p) {
   fillEtiquetaLabel(p);
   const st = $('etqStock'); st.replaceChildren();
   const wait = document.createElement('p'); wait.className = 'etq-wait'; wait.innerHTML = p.produto ? '<span class="spinner"></span> Consultando o estoque do produto e procurando o RG…' : '<span class="spinner"></span> Procurando o RG no Protheus…'; st.append(wait);
-  $('etqWarn').classList.add('hidden'); $('etqBaixa').disabled = true; $('etqStockBtn').disabled = !p.produto;
+  $('etqWarn').classList.add('hidden'); $('etqPil').classList.add('hidden'); $('etqBaixa').disabled = true; $('etqStockBtn').disabled = !p.produto;
   $('etqPeso').value = ''; $('etqMc').value = ''; $('etqPeso').disabled = $('etqMc').disabled = true; setTipoUI('etq', null); tipoDisable('etq', true); etqError(''); $('etqUseLabel').classList.add('hidden'); $('etqBaixa').textContent = '✓ Salvar baixa';
   $('etqModal').classList.remove('hidden');
   let d = null, err = '';
@@ -230,6 +274,7 @@ async function showEtiqueta(p) {
   const fid = scanFolderId(), f = fid && folderById(readFolders(), fid);
   const it = f && f.items.find(x => x.rolos.some(r => sameRg(r.rg, info.rg)) || x.key === itemKey(info.produto, info.op, info.partida));
   if (it) { const others = it.rolos.filter(r => !sameRg(r.rg, info.rg)).length; if (others) warns.push(`A OP ${it.op} está na pasta "${f.name}" com outros ${others} RG(s); ao dar baixa neste, eles saem da pasta.`); }
+  if (info.produto) offerPilFor(info);
   const w = $('etqWarn'); w.replaceChildren(); warns.forEach(t => { const li = document.createElement('p'); li.textContent = '⚠ ' + t; w.append(li); }); w.classList.toggle('hidden', !warns.length);
   const can = !!(p.kind === 'qr' ? info.produto : info.found);   // RG digitado e não encontrado: não há o que baixar
   // RG que já tem baixa nesta pasta: mostra os valores para corrigir
@@ -279,6 +324,14 @@ async function baixaEtiquetaIn(folderId, info, baixa) {
   const prev = old && old.rolos.find(r => sameRg(r.rg, info.rg));
   const roll = prev ? { ...prev, picked: true, pickedAt: prev.pickedAt || Date.now(), pickedBy: prev.pickedBy || currentUser || '', armazem: prev.armazem || info.armazem, endereco: prev.endereco || info.endereco }
     : { rg: info.rg, endereco: info.endereco || '', armazem: info.armazem || '', peso: info.peso ?? info.pesoLiq ?? null, gramatura: info.gramatura, cmc: info.cmc, picked: true, pickedAt: Date.now(), pickedBy: currentUser || '' };
+  if (old && isPilItem(old)) {   // pilotagem/bandeira da pasta Pedidos: usa a mesma regra de coleta (um RG por pedido)
+    try { if (!prev || !prev.picked) await pickRoll(folderId, old, { ...roll, picked: false, pilotagem: !!(old.rolos[0] || {}).pilotagem, bandeira: !!(old.rolos[0] || {}).bandeira, obsBaixa: obsOf(old.rolos[0] || {}) }); }
+    catch (e) { return message(`${e.message} O RG não foi confirmado.`, 'error'); }
+    const ff = folderById(readFolders(), folderId), ii = ff && ff.items.find(x => x.key === old.key), rr = ii && ii.rolos.find(x => sameRg(x.rg, info.rg));
+    if (!rr) return message('O RG foi confirmado, mas não consegui abrir a baixa. Abra a pasta e toque no item em Pegas.', 'error');
+    if (baixa) { await togglePicked(folderId, ii.key, rr, true, baixa); return message(`RG ${rr.rg}: baixa de ${fmtNum(baixa.pesoBaixa, 2)} kg salva em "${ff.name}".`, 'success'); }
+    return openBaixa(folderId, ii, rr);
+  }
   const item = old ? { ...old, rolos: [roll], enderecos: roll.endereco || old.enderecos }
     : { key, produto: info.produto, descricao: info.descricao, op: info.op, partida: info.partida, enderecos: roll.endereco, savedAt: Date.now(), status: 'LIDO PELO QR', rolos: [roll] };
   const ok = await folderOp(
