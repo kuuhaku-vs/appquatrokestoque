@@ -772,6 +772,7 @@ async function onSaveGroup() {
 }
 function fmtDay(ts) { const d = new Date(ts); return !ts || isNaN(d) ? '' : d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
 async function openFolders() {
+  resetFolderOpen();
   $('folderView').classList.add('hidden'); $('foldersList').classList.remove('hidden');
   $('folderPickMsg').classList.toggle('hidden', !folderPickPending);
   if (folderPickPending) $('folderPickMsg').textContent = typeof folderPickPending === 'function' ? 'Escolha a pasta que vai receber a baixa do RG lido, ou crie uma nova.' : 'Escolha a pasta onde salvar esta OP, ou crie uma nova.';
@@ -781,7 +782,9 @@ async function openFolders() {
   startFolderPoll();
   if (await syncFolders(false)) { rerenderFolders(); updateFolderUi(); }
 }
-function closeFolders() { $('foldersModal').classList.add('hidden'); folderPickPending = null; stopFolderPoll(); }
+function closeFolders() { $('foldersModal').classList.add('hidden'); folderPickPending = null; stopFolderPoll(); resetFolderOpen(); }
+// fecha os itens e endereços abertos (ao trocar de pasta, de aba ou sair das pastas)
+function resetFolderOpen() { folderOpenOps.clear(); folderOpenAddr.clear(); }
 function renderSharedBox() {
   const box = $('sharedBox'); box.replaceChildren();
   const fixedUrl = !!(window.NOVA_CONFIG && window.NOVA_CONFIG.pastasUrl);
@@ -888,7 +891,7 @@ async function createFolder(name) {
   message(existed ? `A pasta "${name}" já existia e agora está ativa. Qual código deseja procurar?` : `Pasta "${name}" criada. Qual código deseja procurar? Abra a OP e toque em 💾 Salvar.`, 'success');
 }
 async function openFolder(id) {
-  if (folderOpenId !== id) folderOpenOps.clear();
+  if (folderOpenId !== id) resetFolderOpen();
   folderOpenId = id;
   closeClearBox();
   $('foldersList').classList.add('hidden'); $('folderView').classList.remove('hidden');
@@ -2406,7 +2409,8 @@ $('folderClearAll').onclick = () => clearFolderAction(false);
 $('folderExport').onclick = exportFolder;
 $('folderUse').onclick = () => { const d = readFolders(); d.active = folderOpenId; writeFolders(d); updateFolderUi(); renderFolder(); message('Pasta ativa: as próximas OPs salvas vão para ela.', 'success'); };
 $('folderDelete').onclick = deleteFolderAction;
-document.querySelectorAll('#folderView .folder-tools .seg button').forEach(b => { b.onclick = () => { folderShow = b.dataset.show; printOptsFor = null; renderFolder(); }; });
+// trocar de aba fecha o que estava aberto (um item aberto em "A pegar" não pode ficar preso em "Pegas") e volta ao topo
+document.querySelectorAll('#folderView .folder-tools .seg button').forEach(b => { b.onclick = () => { if (folderShow !== b.dataset.show) resetFolderOpen(); folderShow = b.dataset.show; printOptsFor = null; renderFolder(); $('folderBody').scrollTop = 0; }; });
 $('foldersImport').onclick = () => $('foldersFile').click();
 $('foldersFile').onchange = async () => { const f = $('foldersFile').files[0]; $('foldersFile').value = ''; if (!f) return; try { const r = await importFolders(await f.text()); renderFoldersList(); updateFolderUi(); message(`Planilha importada: ${r.nRolls} rolo(s)${r.nFolders ? `, ${r.nFolders} pasta(s) nova(s)` : ''}.`, 'success'); } catch (e) { message(e.message, 'error'); } };
 $('foldersModal').addEventListener('mousedown', e => { if (e.target === $('foldersModal')) closeFolders(); });
