@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#0d2f50"><title>NOVA | Consulta de Estoque</title>
 <script>try{if(localStorage.getItem('nova_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <!-- ?v=: mude o número junto com o CACHE do sw.js a cada atualização, para o celular nunca misturar arquivo novo com antigo -->
-<link rel="stylesheet" href="styles.css?v=202611191310">
+<link rel="stylesheet" href="styles.css?v=202611191400">
 </head>
 <body>
 <button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
@@ -192,30 +192,39 @@
 </section>
 <section id="baixaModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="baixaTitle">
   <form id="baixaForm" class="defect-modal baixa-modal" novalidate>
-    <div class="modal-heading"><div><span id="baixaKicker" class="section-kicker baixa-kicker">BAIXA DO RG COLETADO</span><h2 id="baixaTitle">RG</h2><p id="baixaSub"></p></div><button id="closeBaixa" class="close-results" type="button" aria-label="Fechar">×</button></div>
-    <div id="baixaProduct" class="baixa-product"><span>PRODUTO</span><b id="baixaProdDesc"></b><small id="baixaProdInfo"></small></div>
+    <!-- cabeçalho enxuto: RG em destaque, produto embaixo (sem OP/partida) -->
+    <div class="bxm-head">
+      <div class="bxm-id">
+        <span id="baixaKicker" class="section-kicker baixa-kicker">BAIXA</span>
+        <h2 id="baixaTitle">RG</h2>
+        <p id="baixaProdDesc" class="bxm-desc"></p>
+        <p id="baixaProdInfo" class="bxm-info"></p>
+      </div>
+      <button id="closeBaixa" class="close-results" type="button" aria-label="Fechar">×</button>
+    </div>
+    <p id="baixaSub" class="hidden"></p>
     <!-- etapa 1: confirmar o RG coletado (os outros RGs da OP saem da pasta) -->
     <div id="baixaStep1" class="hidden">
       <p id="baixaConfirmText" class="baixa-confirm"></p>
       <div class="priority-actions"><span class="spacer"></span><button id="baixaCancel1" class="text-button" type="button">Cancelar</button><button id="baixaConfirm" class="primary" type="button">✓ Confirmar RG</button></div>
     </div>
-    <!-- etapa 2: peso e MC para baixa -->
+    <!-- etapa 2: peso, MC, tipo e observação -->
     <div id="baixaStep2">
       <div class="baixa-fields">
-        <div class="field"><label for="baixaPeso">Peso para baixa (kg)</label><input id="baixaPeso" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
+        <div class="field"><label for="baixaPeso">Peso (kg)</label><input id="baixaPeso" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
         <div class="field"><label for="baixaMc">MC</label><input id="baixaMc" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
       </div>
+      <p id="baixaHint" class="baixa-hint"></p>
+      <button id="baixaUseLabel" class="link-btn baixa-use-label hidden" type="button"></button>
       <div class="baixa-tipo" role="group" aria-label="Tipo da baixa (pode marcar os dois)">
-        <span class="baixa-tipo-label">Tipo <small>(pode marcar os dois)</small></span>
+        <span class="baixa-tipo-label">Tipo</span>
         <label class="tipo-opt"><input id="baixaPilot" type="checkbox"> Pilotagem</label>
         <label class="tipo-opt"><input id="baixaBand" type="checkbox"> Bandeira</label>
       </div>
-      <div class="field baixa-obs"><label for="baixaObs">Observação <small>(opcional)</small></label><textarea id="baixaObs" rows="2" maxlength="120" autocomplete="off" placeholder="Ex.: rolo com emenda, separar para o cliente…"></textarea></div>
-      <button id="baixaUseLabel" class="link-btn baixa-use-label hidden" type="button"></button>
+      <div class="baixa-obs"><input id="baixaObs" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="Observação (opcional)" aria-label="Observação"><div id="baixaObsRecent" class="obs-recent" aria-label="Observações recentes"></div></div>
       <p id="baixaOldScript" class="bx-oldscript hidden" role="alert"></p>
-      <p id="baixaHint" class="baixa-hint"></p>
       <div id="baixaError" class="form-error hidden" role="alert"></div>
-      <div class="priority-actions"><button id="baixaUnpick" class="secondary baixa-undo hidden" type="button">↩ Não peguei</button><span class="spacer"></span><button id="baixaCancel" class="text-button" type="button">Cancelar</button><button id="baixaSave" class="primary" type="submit">✓ Salvar baixa</button></div>
+      <div class="priority-actions bxm-actions"><button id="baixaUnpick" class="link-btn baixa-undo hidden" type="button">↩ Não peguei</button><span class="spacer"></span><button id="baixaCancel" class="text-button" type="button">Cancelar</button><button id="baixaSave" class="primary" type="submit">✓ Salvar baixa</button></div>
     </div>
   </form>
 </section>
@@ -249,11 +258,11 @@
         <div class="field"><label for="etqMc">MC</label><input id="etqMc" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
       </div>
       <div class="baixa-tipo" role="group" aria-label="Tipo da baixa (pode marcar os dois)">
-        <span class="baixa-tipo-label">Tipo <small>(pode marcar os dois)</small></span>
+        <span class="baixa-tipo-label">Tipo</span>
         <label class="tipo-opt"><input id="etqPilot" type="checkbox"> Pilotagem</label>
         <label class="tipo-opt"><input id="etqBand" type="checkbox"> Bandeira</label>
       </div>
-      <div class="field baixa-obs"><label for="etqObs">Observação <small>(opcional)</small></label><textarea id="etqObs" rows="2" maxlength="120" autocomplete="off" placeholder="Ex.: rolo com emenda, separar para o cliente…"></textarea></div>
+      <div class="baixa-obs"><input id="etqObs" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="Observação (opcional)" aria-label="Observação"><div id="etqObsRecent" class="obs-recent" aria-label="Observações recentes"></div></div>
       <button id="etqUseLabel" class="link-btn baixa-use-label hidden" type="button"></button>
       <p class="baixa-hint">Digite só números: 8 = 0,08 · 80 = 0,80 · 148 = 1,48 · 1875 = 18,75. O MC é opcional.</p>
       <div id="etqError" class="form-error hidden" role="alert"></div>
@@ -313,10 +322,10 @@
     <div class="priority-actions"><button id="clearHistory" class="text-button danger" type="button">Limpar histórico</button><span class="spacer"></span><button id="historyClose2" class="secondary" type="button">Fechar</button></div>
   </div>
 </section>
-<script src="config.js?v=202611191310"></script>
-<script src="protheus.js?v=202611191310"></script>
-<script src="renderer.js?v=202611191310"></script>
-<script src="relatorio.js?v=202611191310"></script>
-<script src="etiqueta.js?v=202611191310"></script>
+<script src="config.js?v=202611191400"></script>
+<script src="protheus.js?v=202611191400"></script>
+<script src="renderer.js?v=202611191400"></script>
+<script src="relatorio.js?v=202611191400"></script>
+<script src="etiqueta.js?v=202611191400"></script>
 <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body></html>

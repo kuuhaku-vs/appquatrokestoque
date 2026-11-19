@@ -1015,6 +1015,18 @@ const readTipoUI = px => ({ pilotagem: $(px + 'Pilot').checked, bandeira: $(px +
 // planilha da equipe com o script antigo: a lista volta sem o campo obsBaixa, ou seja, tipo e observação não ficam gravados
 const oldScriptTipo = () => isShared() && (lsGet(FCACHE_KEY, { folders: [] }).folders || []).some(f => (f.items || []).some(it => (it.rolos || []).some(r => r.picked && !('obsBaixa' in r))));
 const OLD_SCRIPT_MSG = '⚠ A planilha da equipe está com o script antigo: Pilotagem, Bandeira e Observação não ficam gravados. No Apps Script, cole o PLANILHA_PASTAS_Code.gs novo, coloque o código em CHAVE, salve e vá em Implantar → Gerenciar implantações → ✏️ → Versão: Nova versão → Implantar.';
+// observações usadas por último neste aparelho: viram atalhos embaixo do campo
+const OBS_KEY = 'nova_obs_recentes';
+function rememberObs(t) { t = cleanObs(t); if (!t) return; const l = (lsGet(OBS_KEY, []) || []).filter(x => x !== t); l.unshift(t); lsSet(OBS_KEY, l.slice(0, 6)); }
+function renderObsRecent(px) {
+  const box = $(px + 'ObsRecent'); if (!box) return;
+  box.replaceChildren();
+  (lsGet(OBS_KEY, []) || []).slice(0, 4).forEach(t => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'obs-chip'; b.textContent = t; b.title = 'Usar esta observação';
+    b.onclick = () => { $(px + 'Obs').value = t; $(px + 'Obs').focus(); };
+    box.append(b);
+  });
+}
 function tipoDisable(px, off) { ['Pilot', 'Band', 'Obs'].forEach(id => { $(px + id).disabled = off; }); }
 function renderBaixas(f, body) {
   const list = baixaRolls(f);
@@ -1060,16 +1072,14 @@ function renderBaixas(f, body) {
     ck.append(inp);
     // RG em cima; descrição e código embaixo, no mesmo estilo
     const c1 = document.createElement('span'); c1.className = 'bx-main';
+    // RG com o tipo ao lado; descrição e código numa linha só; observação embaixo (quando houver)
+    const top = document.createElement('span'); top.className = 'bx-top';
     const rg = document.createElement('b'); rg.className = 'bx-rg'; rg.textContent = r.rg || '—';
-    const dn = document.createElement('small'); dn.className = 'bx-sub'; dn.textContent = it.descricao || 'Produto';
-    const dc = document.createElement('small'); dc.className = 'bx-sub'; dc.textContent = it.produto + (r.baixado && r.baixadoBy ? ' · baixado por ' + r.baixadoBy : '');
-    c1.append(rg, dn, dc);
-    if (tipoList(r).length || obsOf(r)) {
-      const tg = document.createElement('span'); tg.className = 'bx-tags';
-      tipoList(r).forEach(t => { const b = document.createElement('span'); b.className = 'bx-tag ' + (t === 'Pilotagem' ? 'pilot' : 'band'); b.textContent = t; tg.append(b); });
-      if (obsOf(r)) { const o = document.createElement('span'); o.className = 'bx-obs'; o.textContent = '📝 ' + obsOf(r); o.title = obsOf(r); tg.append(o); }
-      c1.append(tg);
-    }
+    top.append(rg);
+    tipoList(r).forEach(t => { const b = document.createElement('span'); b.className = 'bx-tag ' + (t === 'Pilotagem' ? 'pilot' : 'band'); b.textContent = t === 'Pilotagem' ? 'PILOT.' : 'BAND.'; b.title = t; top.append(b); });
+    const dn = document.createElement('small'); dn.className = 'bx-sub'; dn.textContent = `${it.descricao || 'Produto'} · ${it.produto}` + (r.baixado && r.baixadoBy ? ' · baixado por ' + r.baixadoBy : '');
+    c1.append(top, dn);
+    if (obsOf(r)) { const o = document.createElement('small'); o.className = 'bx-obs'; o.textContent = obsOf(r); o.title = obsOf(r); c1.append(o); }
     // armazém do rolo (gravado quando a OP foi salva na pasta), antes do peso e do MC
     const ca = document.createElement('span'); ca.className = 'bx-arm' + (r.armazem ? '' : ' none'); ca.textContent = armOf(r); ca.title = r.armazem ? `Armazém ${r.armazem}` : 'Armazém não informado (OP salva por uma versão antiga)';
     const c3 = document.createElement('strong'); c3.textContent = fmtNum(Number(r.pesoBaixa), 2);
@@ -1205,7 +1215,8 @@ function opRow(f, it) {
   row.title = open ? 'Fechar a seleção de RG' : 'Escolher o RG que pegou';
   const box = document.createElement('span'); box.className = 'fo-box'; box.textContent = picked.length ? '✓' : '';
   const main = document.createElement('span'); main.className = 'fo-main';
-  const op = document.createElement('b'); op.textContent = `OP ${it.op || '—'} · ${it.partida || '—'}`;
+  const pv = /^PV /.test(it.status || '');   // item enviado pelo app de Pedidos: mostra o pedido no lugar da OP
+  const op = document.createElement('b'); op.textContent = pv ? it.status : `OP ${it.op || '—'} · ${it.partida || '—'}`;
   const ad = document.createElement('small'); ad.textContent = (bad ? '✕ ' + it.status.replace(/^DEFEITO:\s*/, '') + ' · ' : '') + (it.enderecos ? it.enderecos.split(' - ').join(' · ') : 'sem endereço');
   main.append(op, ad);
   const side = document.createElement('span'); side.className = 'fo-side';
@@ -1257,10 +1268,10 @@ function opRow(f, it) {
 let baixaCtx = null;
 function openBaixa(folderId, it, r) {
   baixaCtx = { folderId, key: it.key, r, it };
-  $('baixaTitle').textContent = `RG ${r.rg || '—'}`;
-  $('baixaSub').textContent = `OP ${it.op || '—'} · Partida ${it.partida || '—'} · ${r.endereco || 'sem endereço'}`;
+  // cabeçalho enxuto: RG, descrição e uma linha com código · endereço · peso em estoque (sem OP/partida)
+  $('baixaTitle').textContent = r.rg || 'RG —';
   $('baixaProdDesc').textContent = it.descricao || 'Produto';
-  $('baixaProdInfo').textContent = [it.produto, r.peso !== null && r.peso !== undefined ? `rolo com ${fmtNum(r.peso, 2)} kg no estoque` : ''].filter(Boolean).join(' · ');
+  $('baixaProdInfo').textContent = [it.produto, r.endereco || '', r.peso !== null && r.peso !== undefined ? `${fmtNum(r.peso, 2)} kg em estoque` : ''].filter(Boolean).join(' · ');
   const others = it.rolos.filter(x => x !== r && !(x.rg === r.rg && x.endereco === r.endereco));
   // RG ainda não confirmado: só confirma a coleta (os outros RGs da OP saem da pasta).
   // O peso para baixa é informado depois, tocando na OP na aba Pegas.
@@ -1274,18 +1285,19 @@ function baixaStep(n, othersCount = 0) {
   $('baixaStep1').classList.toggle('hidden', n !== 1);
   $('baixaStep2').classList.toggle('hidden', n !== 2);
   if (n === 1) {
-    $('baixaKicker').textContent = 'CONFIRMAR RG COLETADO';
+    $('baixaKicker').textContent = 'CONFIRMAR COLETA';
     $('baixaConfirmText').textContent = othersCount
-      ? `Você coletou o RG ${r.rg}? Ao confirmar, os outros ${othersCount} RG(s) desta OP serão apagados da pasta e fica só este. Depois, toque na OP na aba Pegas para informar o peso.`
-      : `Você coletou o RG ${r.rg}? Depois, toque na OP na aba Pegas para informar o peso.`;
+      ? `Você pegou este rolo? Os outros ${othersCount} RG(s) sugeridos saem da pasta. O peso é informado depois, na aba Pegas.`
+      : 'Você pegou este rolo? O peso é informado depois, na aba Pegas.';
   } else {
-    $('baixaKicker').textContent = 'PESO PARA BAIXA';
+    $('baixaKicker').textContent = r.picked && hasVal(r.pesoBaixa) ? 'CORRIGIR BAIXA' : 'BAIXA';
     const has = r.picked && hasVal(r.pesoBaixa);
     $('baixaPeso').value = has ? fmtNum(Number(r.pesoBaixa), 2) : '';   // vem vazio: digita só o que vai baixar
     $('baixaMc').value = r.picked && hasVal(r.mc) && parseNumber(r.mc) !== null ? fmtNum(r.mc, 2, 2) : '';   // MC no mesmo formato do peso
-    setTipoUI('baixa', r.picked ? r : null);
+    setTipoUI('baixa', r);   // tipo/observação podem vir prontos (ex.: enviados pelo app de Pedidos)
+    renderObsRecent('baixa');
     const ow = $('baixaOldScript'); if (ow) { ow.textContent = OLD_SCRIPT_MSG; ow.classList.toggle('hidden', !oldScriptTipo()); }
-    $('baixaHint').textContent = 'Confira o produto e digite só números no peso e no MC: 8 = 0,08 · 80 = 0,80 · 180 = 1,80 · 1875 = 18,75. Para zerar o MC, digite 0. Com o peso, o RG vai para a aba Baixas.' + (r.picked && r.pickedBy ? ` Pego por ${r.pickedBy}.` : '');
+    $('baixaHint').textContent = 'Só números: 106 = 1,06 · 1875 = 18,75 · MC 0 zera.';
     $('baixaUnpick').classList.toggle('hidden', !r.picked);
     $('baixaSave').textContent = has ? '✓ Atualizar baixa' : '✓ Salvar baixa';
   }
@@ -1314,7 +1326,7 @@ async function confirmPickedRg() {
     folderOpenOps.delete(key);
     closeBaixa();
     rerenderFolders(); updateSaveBtn();
-    message(`RG ${r.rg} confirmado. Para informar o peso, toque na OP ${it.op} na aba Pegas.`, 'success');
+    message(`RG ${r.rg} confirmado. Para informar o peso, toque em ${/^PV /.test(it.status || '') ? it.status.split(' · ')[0] : 'OP ' + it.op} na aba Pegas.`, 'success');
   } finally { btn.disabled = false; }
 }
 // Peso para baixa: digita só números e eles entram como centésimos — 80 vira 0,80; 180 vira 1,80; 1875 vira 18,75
@@ -1343,7 +1355,7 @@ async function saveBaixa(e) {
   if (peso !== null && peso > 9999) { baixaError('Peso Total muito alto. Confira o valor.'); return $('baixaPeso').focus(); }
   const mcNum = mcRaw ? parseNumber(mcRaw) : null;
   if (mcRaw && (mcNum === null || mcNum < 0)) { baixaError('O MC precisa ser um número (ex.: digite 125 para 1,25, ou 0 para zerar).'); return $('baixaMc').focus(); }   // MC pode ser 0 (zerado)
-  const tipo = readTipoUI('baixa');
+  const tipo = readTipoUI('baixa'); rememberObs(tipo.obsBaixa);
   const { folderId, key, r } = baixaCtx; closeBaixa();
   if (peso !== null) folderOpenOps.delete(key);   // com peso: sai da aba Pegas e aparece em Baixas
   await togglePicked(folderId, key, r, true, { pesoBaixa: peso === null ? null : Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 2, 2) : '', ...tipo });
@@ -1365,13 +1377,20 @@ async function restoreOpRolls(folderId, key, it) {
   let g = null;
   try {
     const d = await api(`/api/stock?code=${encodeURIComponent(it.produto)}`, {}, SEARCH_TIMEOUT_MS);
-    g = groupRows(Array.isArray(d.rows) ? d.rows : []).find(x => String(x.op).trim() === String(it.op).trim() && String(x.partida).trim() === String(it.partida).trim());
+    const groups = groupRows(Array.isArray(d.rows) ? d.rows : []);
+    if (/ \/ /.test(it.op || '') || /^PV /.test(it.status || '')) {
+      // item do app de Pedidos: os RGs sugeridos podem ser de OPs diferentes; junta os rolos dessas OPs
+      const ops = String(it.op || '').split(' / ').map(x => x.trim()).filter(Boolean);
+      const hit = groups.filter(x => ops.includes(String(x.op).trim()));
+      if (hit.length) g = { ...hit[0], rows: hit.flatMap(x => x.rows) };
+    } else g = groups.find(x => String(x.op).trim() === String(it.op).trim() && String(x.partida).trim() === String(it.partida).trim());
   } catch (e) {
     return message(`Coleta desfeita. Não consegui buscar os outros RGs no estoque agora (${e.message}). Pesquise o código ${it.produto} e salve a OP de novo.`, 'error');
   }
   if (!g) return message(`Coleta desfeita. Os outros RGs da OP ${it.op} não estão mais no estoque.`, 'info');
   const snap = snapshotGroup(g);
-  const item = { ...it, key, rolos: snap.rolos.map(x => ({ ...x, picked: false })), enderecos: snap.enderecos, savedAt: Date.now() };
+  const keepTipo = it.rolos[0] ? { pilotagem: !!it.rolos[0].pilotagem, bandeira: !!it.rolos[0].bandeira, obsBaixa: obsOf(it.rolos[0]) } : {};   // tipo/obs que vieram do pedido
+  const item = { ...it, key, rolos: snap.rolos.map(x => ({ ...x, picked: false, ...keepTipo })), enderecos: snap.enderecos, savedAt: Date.now() };
   const ok = await folderOp(
     () => remote('saveItem', { folderId, item }),
     () => { const dd = readFolders(), f = folderById(dd, folderId); if (!f) return false; const i = f.items.findIndex(x => x.key === key);

@@ -174,11 +174,12 @@ function saveItem_(folderId, item, user) {
     row[C.mc] = picked ? (o && o[C.mc] ? o[C.mc] : s_(r.mc)) : '';
     const bx = picked && o && o[C.baixado] === 'sim';
     row[C.baixado] = bx ? 'sim' : ''; row[C.baixado_por] = bx ? o[C.baixado_por] : ''; row[C.baixado_em] = bx ? o[C.baixado_em] : '';
-    // tipo e observação: mantém o que já estava na planilha; senão, o que veio do aparelho
+    // tipo e observação: mantém o que já estava na planilha; senão, o que veio do aparelho.
+    // Vale também para rolos ainda não pegos (ex.: sugestões enviadas pelo app de Pedidos já com Pilotagem e o nº do pedido).
     const hadTipo = o && (o[C.pilotagem] || o[C.bandeira] || o[C.obs_baixa]);
-    row[C.pilotagem] = picked ? (hadTipo ? o[C.pilotagem] : (r.pilotagem ? 'sim' : '')) : '';
-    row[C.bandeira] = picked ? (hadTipo ? o[C.bandeira] : (r.bandeira ? 'sim' : '')) : '';
-    row[C.obs_baixa] = picked ? (hadTipo ? o[C.obs_baixa] : obs_(r.obsBaixa)) : '';
+    row[C.pilotagem] = hadTipo ? o[C.pilotagem] : (r.pilotagem ? 'sim' : '');
+    row[C.bandeira] = hadTipo ? o[C.bandeira] : (r.bandeira ? 'sim' : '');
+    row[C.obs_baixa] = hadTipo ? o[C.obs_baixa] : obs_(r.obsBaixa);
     keep.push(row);
   });
   rewrite_(sr, HR.length, keep);

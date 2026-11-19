@@ -235,7 +235,7 @@ async function showEtiqueta(p) {
   // RG que já tem baixa nesta pasta: mostra os valores para corrigir
   const prev = it && it.rolos.find(r => sameRg(r.rg, info.rg)), has = !!(prev && prev.picked && hasVal(prev.pesoBaixa));
   if (has) { $('etqPeso').value = fmtNum(Number(prev.pesoBaixa), 2); $('etqMc').value = hasVal(prev.mc) && parseNumber(prev.mc) !== null ? fmtNum(prev.mc, 2, 2) : ''; }
-  setTipoUI('etq', has ? prev : null);   // tipo e observação já gravados neste RG
+  setTipoUI('etq', prev || null); renderObsRecent('etq');   // tipo e observação já gravados neste RG (ou enviados pelo app de Pedidos)
   $('etqBaixa').disabled = !can; $('etqPeso').disabled = $('etqMc').disabled = !can; tipoDisable('etq', !can);
   $('etqBaixa').textContent = `✓ ${has ? 'Atualizar' : 'Salvar'} baixa${f ? ` em "${f.name}"` : ''}`;
   const u = $('etqUseLabel');
@@ -262,7 +262,7 @@ async function baixaEtiqueta(e) {
   if (peso > 9999) { etqError('Peso muito alto. Confira o valor.'); return $('etqPeso').focus(); }
   const mcNum = mcRaw ? parseNumber(mcRaw) : null;
   if (mcRaw && (mcNum === null || mcNum < 0)) { etqError('O MC precisa ser um número (ex.: digite 125 para 1,25, ou 0 para zerar).'); return $('etqMc').focus(); }
-  const baixa = { pesoBaixa: Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 2, 2) : '', ...readTipoUI('etq') };
+  const baixa = { pesoBaixa: Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 2, 2) : '', ...readTipoUI('etq') }; rememberObs(baixa.obsBaixa);
   const info = etqCtx.info, fid = scanFolderId();
   closeEtiqueta();
   if (fid) return baixaEtiquetaIn(fid, info, baixa);
