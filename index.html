@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#0d2f50"><title>NOVA | Consulta de Estoque</title>
 <script>try{if(localStorage.getItem('nova_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <!-- ?v=: mude o número junto com o CACHE do sw.js a cada atualização, para o celular nunca misturar arquivo novo com antigo -->
-<link rel="stylesheet" href="styles.css?v=202611121525">
+<link rel="stylesheet" href="styles.css?v=202611191300">
 </head>
 <body>
 <button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
@@ -205,6 +205,12 @@
         <div class="field"><label for="baixaPeso">Peso para baixa (kg)</label><input id="baixaPeso" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
         <div class="field"><label for="baixaMc">MC</label><input id="baixaMc" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
       </div>
+      <div class="baixa-tipo" role="group" aria-label="Tipo da baixa (pode marcar os dois)">
+        <span class="baixa-tipo-label">Tipo <small>(pode marcar os dois)</small></span>
+        <label class="tipo-opt"><input id="baixaPilot" type="checkbox"> Pilotagem</label>
+        <label class="tipo-opt"><input id="baixaBand" type="checkbox"> Bandeira</label>
+      </div>
+      <div class="field baixa-obs"><label for="baixaObs">Observação <small>(opcional)</small></label><textarea id="baixaObs" rows="2" maxlength="120" autocomplete="off" placeholder="Ex.: rolo com emenda, separar para o cliente…"></textarea></div>
       <button id="baixaUseLabel" class="link-btn baixa-use-label hidden" type="button"></button>
       <p id="baixaHint" class="baixa-hint"></p>
       <div id="baixaError" class="form-error hidden" role="alert"></div>
@@ -241,6 +247,12 @@
         <div class="field"><label for="etqPeso">Peso para baixa (kg)</label><input id="etqPeso" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
         <div class="field"><label for="etqMc">MC</label><input id="etqMc" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
       </div>
+      <div class="baixa-tipo" role="group" aria-label="Tipo da baixa (pode marcar os dois)">
+        <span class="baixa-tipo-label">Tipo <small>(pode marcar os dois)</small></span>
+        <label class="tipo-opt"><input id="etqPilot" type="checkbox"> Pilotagem</label>
+        <label class="tipo-opt"><input id="etqBand" type="checkbox"> Bandeira</label>
+      </div>
+      <div class="field baixa-obs"><label for="etqObs">Observação <small>(opcional)</small></label><textarea id="etqObs" rows="2" maxlength="120" autocomplete="off" placeholder="Ex.: rolo com emenda, separar para o cliente…"></textarea></div>
       <button id="etqUseLabel" class="link-btn baixa-use-label hidden" type="button"></button>
       <p class="baixa-hint">Digite só números: 8 = 0,08 · 80 = 0,80 · 148 = 1,48 · 1875 = 18,75. O MC é opcional.</p>
       <div id="etqError" class="form-error hidden" role="alert"></div>
@@ -300,10 +312,10 @@
     <div class="priority-actions"><button id="clearHistory" class="text-button danger" type="button">Limpar histórico</button><span class="spacer"></span><button id="historyClose2" class="secondary" type="button">Fechar</button></div>
   </div>
 </section>
-<script src="config.js?v=202611121525"></script>
-<script src="protheus.js?v=202611121525"></script>
-<script src="renderer.js?v=202611121525"></script>
-<script src="relatorio.js?v=202611121525"></script>
-<script src="etiqueta.js?v=202611121525"></script>
+<script src="config.js?v=202611191300"></script>
+<script src="protheus.js?v=202611191300"></script>
+<script src="renderer.js?v=202611191300"></script>
+<script src="relatorio.js?v=202611191300"></script>
+<script src="etiqueta.js?v=202611191300"></script>
 <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body></html>

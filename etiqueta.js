@@ -181,7 +181,7 @@ async function showEtiqueta(p) {
   const st = $('etqStock'); st.replaceChildren();
   const wait = document.createElement('p'); wait.className = 'etq-wait'; wait.innerHTML = p.produto ? '<span class="spinner"></span> Consultando o estoque do produto e procurando o RG…' : '<span class="spinner"></span> Procurando o RG no Protheus…'; st.append(wait);
   $('etqWarn').classList.add('hidden'); $('etqBaixa').disabled = true; $('etqStockBtn').disabled = !p.produto;
-  $('etqPeso').value = ''; $('etqMc').value = ''; $('etqPeso').disabled = $('etqMc').disabled = true; etqError(''); $('etqUseLabel').classList.add('hidden'); $('etqBaixa').textContent = '✓ Salvar baixa';
+  $('etqPeso').value = ''; $('etqMc').value = ''; $('etqPeso').disabled = $('etqMc').disabled = true; setTipoUI('etq', null); tipoDisable('etq', true); etqError(''); $('etqUseLabel').classList.add('hidden'); $('etqBaixa').textContent = '✓ Salvar baixa';
   $('etqModal').classList.remove('hidden');
   let d = null, err = '';
   try {
@@ -235,7 +235,8 @@ async function showEtiqueta(p) {
   // RG que já tem baixa nesta pasta: mostra os valores para corrigir
   const prev = it && it.rolos.find(r => sameRg(r.rg, info.rg)), has = !!(prev && prev.picked && hasVal(prev.pesoBaixa));
   if (has) { $('etqPeso').value = fmtNum(Number(prev.pesoBaixa), 2); $('etqMc').value = hasVal(prev.mc) && parseNumber(prev.mc) !== null ? fmtNum(prev.mc, 2, 2) : ''; }
-  $('etqBaixa').disabled = !can; $('etqPeso').disabled = $('etqMc').disabled = !can;
+  setTipoUI('etq', has ? prev : null);   // tipo e observação já gravados neste RG
+  $('etqBaixa').disabled = !can; $('etqPeso').disabled = $('etqMc').disabled = !can; tipoDisable('etq', !can);
   $('etqBaixa').textContent = `✓ ${has ? 'Atualizar' : 'Salvar'} baixa${f ? ` em "${f.name}"` : ''}`;
   const u = $('etqUseLabel');
   if (can && !has && p.pesoLiq > 0) { u.textContent = `Usar o peso da etiqueta (${fmtNum(p.pesoLiq, 2)} kg)`; u.classList.remove('hidden'); }
@@ -261,7 +262,7 @@ async function baixaEtiqueta(e) {
   if (peso > 9999) { etqError('Peso muito alto. Confira o valor.'); return $('etqPeso').focus(); }
   const mcNum = mcRaw ? parseNumber(mcRaw) : null;
   if (mcRaw && (mcNum === null || mcNum < 0)) { etqError('O MC precisa ser um número (ex.: digite 125 para 1,25, ou 0 para zerar).'); return $('etqMc').focus(); }
-  const baixa = { pesoBaixa: Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 2, 2) : '' };
+  const baixa = { pesoBaixa: Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 2, 2) : '', ...readTipoUI('etq') };
   const info = etqCtx.info, fid = scanFolderId();
   closeEtiqueta();
   if (fid) return baixaEtiquetaIn(fid, info, baixa);
@@ -290,7 +291,7 @@ async function baixaEtiquetaIn(folderId, info, baixa) {
   if (!r) return message('O RG foi salvo na pasta, mas não consegui abrir a baixa. Abra a pasta e toque na OP em Pegas.', 'error');
   if (baixa) {   // peso e MC já informados na janela da etiqueta
     await togglePicked(folderId, it.key, r, true, baixa);
-    return message(`RG ${r.rg}: baixa de ${fmtNum(baixa.pesoBaixa, 2)} kg${baixa.mc ? ` (MC ${baixa.mc})` : ''} salva em "${f.name}". Está na aba Baixas.`, 'success');
+    return message(`RG ${r.rg}: baixa de ${fmtNum(baixa.pesoBaixa, 2)} kg${baixa.mc ? ` (MC ${baixa.mc})` : ''}${tipoText(baixa) ? ` · ${tipoText(baixa)}` : ''} salva em "${f.name}". Está na aba Baixas.`, 'success');
   }
   openBaixa(folderId, it, r);
   // atalho: usar o peso líquido impresso na etiqueta

@@ -1001,6 +1001,18 @@ function renderFolder() {
 // A caixa marca que a baixa já foi feita no Protheus (fica gravada no aparelho e na planilha da equipe).
 const baixaRolls = f => pickedRolls(f).filter(x => hasVal(x.r.pesoBaixa));
 const armOf = r => String(r.armazem ?? '').trim() || '—';
+// Tipo da baixa (Pilotagem e/ou Bandeira: pode marcar os dois) e observação livre, gravados junto com o peso e o MC
+const tipoList = r => [r && r.pilotagem ? 'Pilotagem' : '', r && r.bandeira ? 'Bandeira' : ''].filter(Boolean);
+const tipoText = r => tipoList(r).join(' + ');
+const obsOf = r => String((r && r.obsBaixa) || '').trim();
+const cleanObs = v => String(v || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+// campos do formulário (prefixo 'baixa' ou 'etq'): preenche / lê Pilotagem, Bandeira e Observação
+function setTipoUI(px, r) {
+  [['Pilot', 'pilotagem'], ['Band', 'bandeira']].forEach(([id, k]) => { const el = $(px + id); el.checked = !!(r && r[k]); el.closest('.tipo-opt').classList.toggle('on', el.checked); });
+  $(px + 'Obs').value = obsOf(r);
+}
+const readTipoUI = px => ({ pilotagem: $(px + 'Pilot').checked, bandeira: $(px + 'Band').checked, obsBaixa: cleanObs($(px + 'Obs').value) });
+function tipoDisable(px, off) { ['Pilot', 'Band', 'Obs'].forEach(id => { $(px + id).disabled = off; }); }
 function renderBaixas(f, body) {
   const list = baixaRolls(f);
   if (!list.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Nenhum RG com Peso Total para baixar. Ao marcar o RG em "A pegar", informe o Peso Total.'; body.append(e); return; }
@@ -1023,8 +1035,8 @@ function renderBaixas(f, body) {
   list.forEach(({ it, r }) => {
     // linha inteira abre a correção do peso, menos a caixa de "baixa efetuada" e o botão de copiar
     const row = document.createElement('div'); row.className = 'bx-row bx-item' + (r.baixado ? ' done' : '');
-    row.tabIndex = 0; row.setAttribute('role', 'button'); row.title = 'Toque para alterar o peso para baixa';
-    row.setAttribute('aria-label', `RG ${r.rg}, ${it.descricao || 'Produto'}, armazém ${armOf(r)}, ${fmtNum(Number(r.pesoBaixa), 2)} kg. Alterar o peso para baixa`);
+    row.tabIndex = 0; row.setAttribute('role', 'button'); row.title = 'Toque para alterar a baixa (peso, MC, tipo e observação)';
+    row.setAttribute('aria-label', `RG ${r.rg}, ${it.descricao || 'Produto'}, armazém ${armOf(r)}, ${fmtNum(Number(r.pesoBaixa), 2)} kg${tipoText(r) ? ', ' + tipoText(r) : ''}${obsOf(r) ? ', observação: ' + obsOf(r) : ''}. Alterar a baixa`);
     row.onclick = e => { if (e.target.closest('.bx-check, .bx-copyrg')) return; openBaixa(f.id, it, r); };
     row.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); openBaixa(f.id, it, r); } };
     const ck = document.createElement('label'); ck.className = 'bx-check'; ck.title = 'Baixa efetuada';
@@ -1033,7 +1045,7 @@ function renderBaixas(f, body) {
       if (!inp.checked) return setBaixado(f.id, it.key, r, false);
       // baixa feita no Protheus: confirma e o RG sai da pasta
       const ok = await askOk({ tone: 'ok', kicker: 'BAIXA EFETUADA', title: 'A baixa já foi feita no Protheus?',
-        card: { label: `RG ${r.rg}`, title: it.descricao || it.produto, lines: [['Código', it.produto], ['Armazém', armOf(r)], ['Peso para baixa', fmtNum(Number(r.pesoBaixa), 2) + ' kg'], hasVal(r.mc) ? ['MC', String(r.mc)] : null, ['OP', `${it.op || '—'} · ${it.partida || '—'}`]] },
+        card: { label: `RG ${r.rg}`, title: it.descricao || it.produto, lines: [['Código', it.produto], ['Armazém', armOf(r)], ['Peso para baixa', fmtNum(Number(r.pesoBaixa), 2) + ' kg'], hasVal(r.mc) ? ['MC', String(r.mc)] : null, tipoText(r) ? ['Tipo', tipoText(r)] : null, obsOf(r) ? ['Observação', obsOf(r)] : null, ['OP', `${it.op || '—'} · ${it.partida || '—'}`]] },
         note: `Ao confirmar, o RG sai da pasta "${f.name}"${isShared() ? ' para todos os usuários' : ''}.`, okText: '✓ Sim, baixa feita', cancelText: 'Ainda não' });
       if (!ok) { inp.checked = false; return; }
       row.classList.add('leaving'); inp.disabled = true;
@@ -1048,6 +1060,12 @@ function renderBaixas(f, body) {
     const dn = document.createElement('small'); dn.className = 'bx-sub'; dn.textContent = it.descricao || 'Produto';
     const dc = document.createElement('small'); dc.className = 'bx-sub'; dc.textContent = it.produto + (r.baixado && r.baixadoBy ? ' · baixado por ' + r.baixadoBy : '');
     c1.append(rg, dn, dc);
+    if (tipoList(r).length || obsOf(r)) {
+      const tg = document.createElement('span'); tg.className = 'bx-tags';
+      tipoList(r).forEach(t => { const b = document.createElement('span'); b.className = 'bx-tag ' + (t === 'Pilotagem' ? 'pilot' : 'band'); b.textContent = t; tg.append(b); });
+      if (obsOf(r)) { const o = document.createElement('span'); o.className = 'bx-obs'; o.textContent = '📝 ' + obsOf(r); o.title = obsOf(r); tg.append(o); }
+      c1.append(tg);
+    }
     // armazém do rolo (gravado quando a OP foi salva na pasta), antes do peso e do MC
     const ca = document.createElement('span'); ca.className = 'bx-arm' + (r.armazem ? '' : ' none'); ca.textContent = armOf(r); ca.title = r.armazem ? `Armazém ${r.armazem}` : 'Armazém não informado (OP salva por uma versão antiga)';
     const c3 = document.createElement('strong'); c3.textContent = fmtNum(Number(r.pesoBaixa), 2);
@@ -1077,7 +1095,7 @@ async function copyText(t) {
 async function copyBaixas(f) {
   const list = baixaRolls(f);
   const lines = [`Baixas da pasta ${f.name}`, ''];
-  list.forEach(({ it, r }) => lines.push(`${r.baixado ? '[x]' : '[ ]'} RG ${r.rg} · ${it.descricao || it.produto} (${it.produto}) · Armazém ${armOf(r)} · Peso ${fmtNum(Number(r.pesoBaixa), 2)} kg · MC ${hasVal(r.mc) ? r.mc : '—'}`));
+  list.forEach(({ it, r }) => lines.push(`${r.baixado ? '[x]' : '[ ]'} RG ${r.rg} · ${it.descricao || it.produto} (${it.produto}) · Armazém ${armOf(r)} · Peso ${fmtNum(Number(r.pesoBaixa), 2)} kg · MC ${hasVal(r.mc) ? r.mc : '—'}${tipoText(r) ? ' · ' + tipoText(r) : ''}${obsOf(r) ? ' · Obs: ' + obsOf(r) : ''}`));
   try { await navigator.clipboard.writeText(lines.join('\n')); message('Lista de baixas copiada. Cole no WhatsApp, e-mail ou bloco de notas.', 'success'); }
   catch { message('Não foi possível copiar neste navegador. Use 🖨 Imprimir ou ↓ Exportar planilha.', 'error'); }
 }
@@ -1133,7 +1151,10 @@ function printBaixas(f, prefs = printPrefs()) {
   const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const now = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   // como nas pastas: RG em cima; descrição e código do produto embaixo, na mesma coluna
-  const row = ({ it, r }) => `<tr><td class="ck">${r.baixado ? '☑' : '☐'}</td><td class="main"><b class="rg">${esc(r.rg)}</b><span class="sub">${esc(it.descricao || 'Produto')}</span>${plan.showCode ? `<span class="sub">${esc(it.produto)}</span>` : ''}</td><td class="a">${esc(armOf(r))}</td><td class="n">${esc(fmtNum(Number(r.pesoBaixa), 2))}</td><td class="n">${esc(hasVal(r.mc) ? r.mc : '—')}</td></tr>`;
+  // tipo (Pilotagem/Bandeira) vai ao lado do RG; a observação vai na linha do código (ou da descrição, quando o código não cabe)
+  const tags = r => tipoList(r).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+  const obs = r => obsOf(r) ? ` · Obs: ${esc(obsOf(r))}` : '';
+  const row = ({ it, r }) => `<tr><td class="ck">${r.baixado ? '☑' : '☐'}</td><td class="main"><b class="rg">${esc(r.rg)}${tags(r)}</b><span class="sub">${esc(it.descricao || 'Produto')}${plan.showCode ? '' : obs(r)}</span>${plan.showCode ? `<span class="sub">${esc(it.produto)}${obs(r)}</span>` : ''}</td><td class="a">${esc(armOf(r))}</td><td class="n">${esc(fmtNum(Number(r.pesoBaixa), 2))}</td><td class="n">${esc(hasVal(r.mc) ? r.mc : '—')}</td></tr>`;
   const table = rows => `<table><thead><tr><th class="ck">Baixa</th><th>RG · Produto</th><th class="a">Arm.</th><th class="n">Peso (kg)</th><th class="n">MC</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>`;
   // colunas em ordem de leitura: a 1ª coluna termina e a 2ª continua de onde parou
   const parts = []; for (let k = 0; k < plan.cols; k++) parts.push(list.slice(k * plan.perCol, (k + 1) * plan.perCol));
@@ -1210,7 +1231,7 @@ function opRow(f, it) {
       if (r.picked) {
         const bx = document.createElement('span'); bx.className = 'rg-baixa';
         const hasPeso = r.pesoBaixa !== null && r.pesoBaixa !== undefined && r.pesoBaixa !== '';
-        const parts = [hasPeso ? `${fmtNum(Number(r.pesoBaixa), 2)} kg` : '', r.mc ? `MC ${r.mc}` : ''].filter(Boolean);
+        const parts = [hasPeso ? `${fmtNum(Number(r.pesoBaixa), 2)} kg` : '', r.mc ? `MC ${r.mc}` : '', tipoText(r)].filter(Boolean);
         bx.textContent = parts.length ? `Baixa: ${parts.join(' · ')}` : 'Baixa: não informada';
         bx.classList.toggle('missing', !parts.length);
         b.append(bx);
@@ -1258,6 +1279,7 @@ function baixaStep(n, othersCount = 0) {
     const has = r.picked && hasVal(r.pesoBaixa);
     $('baixaPeso').value = has ? fmtNum(Number(r.pesoBaixa), 2) : '';   // vem vazio: digita só o que vai baixar
     $('baixaMc').value = r.picked && hasVal(r.mc) && parseNumber(r.mc) !== null ? fmtNum(r.mc, 2, 2) : '';   // MC no mesmo formato do peso
+    setTipoUI('baixa', r.picked ? r : null);
     $('baixaHint').textContent = 'Confira o produto e digite só números no peso e no MC: 8 = 0,08 · 80 = 0,80 · 180 = 1,80 · 1875 = 18,75. Para zerar o MC, digite 0. Com o peso, o RG vai para a aba Baixas.' + (r.picked && r.pickedBy ? ` Pego por ${r.pickedBy}.` : '');
     $('baixaUnpick').classList.toggle('hidden', !r.picked);
     $('baixaSave').textContent = has ? '✓ Atualizar baixa' : '✓ Salvar baixa';
@@ -1316,9 +1338,10 @@ async function saveBaixa(e) {
   if (peso !== null && peso > 9999) { baixaError('Peso Total muito alto. Confira o valor.'); return $('baixaPeso').focus(); }
   const mcNum = mcRaw ? parseNumber(mcRaw) : null;
   if (mcRaw && (mcNum === null || mcNum < 0)) { baixaError('O MC precisa ser um número (ex.: digite 125 para 1,25, ou 0 para zerar).'); return $('baixaMc').focus(); }   // MC pode ser 0 (zerado)
+  const tipo = readTipoUI('baixa');
   const { folderId, key, r } = baixaCtx; closeBaixa();
   if (peso !== null) folderOpenOps.delete(key);   // com peso: sai da aba Pegas e aparece em Baixas
-  await togglePicked(folderId, key, r, true, { pesoBaixa: peso === null ? null : Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 2, 2) : '' });
+  await togglePicked(folderId, key, r, true, { pesoBaixa: peso === null ? null : Math.round(peso * 1000) / 1000, mc: mcRaw ? fmtNum(mcNum, 2, 2) : '', ...tipo });
   if (peso !== null) message(`RG ${r.rg}: baixa de ${fmtNum(peso, 2)} kg salva. Está na aba Baixas.`, 'success');
 }
 async function unpickBaixa() {
@@ -1353,17 +1376,19 @@ async function restoreOpRolls(folderId, key, it) {
 // marca/desmarca o RG: muda na hora na tela e grava (planilha ou aparelho); se falhar, volta
 async function togglePicked(folderId, key, r, picked, baixa = {}) {
   const pesoBaixa = picked && baixa.pesoBaixa !== undefined ? baixa.pesoBaixa : null, mc = picked ? String(baixa.mc || '') : '';
+  const pilotagem = picked && !!baixa.pilotagem, bandeira = picked && !!baixa.bandeira, obsBaixa = picked ? cleanObs(baixa.obsBaixa) : '';
   const apply = d => { const f = folderById(d, folderId), it = f && f.items.find(x => x.key === key), rr = it && it.rolos.find(x => x.rg === r.rg && x.endereco === r.endereco);
-    if (rr) { const was = !!rr.picked; rr.picked = picked; rr.pickedAt = picked ? (was ? rr.pickedAt : Date.now()) : null; rr.pickedBy = picked ? (was && rr.pickedBy ? rr.pickedBy : (currentUser || '')) : ''; rr.pesoBaixa = pesoBaixa; rr.mc = mc; if (!picked) { rr.baixado = false; rr.baixadoBy = ''; rr.baixadoAt = null; } }
+    if (rr) { const was = !!rr.picked; rr.picked = picked; rr.pickedAt = picked ? (was ? rr.pickedAt : Date.now()) : null; rr.pickedBy = picked ? (was && rr.pickedBy ? rr.pickedBy : (currentUser || '')) : ''; rr.pesoBaixa = pesoBaixa; rr.mc = mc; rr.pilotagem = pilotagem; rr.bandeira = bandeira; rr.obsBaixa = obsBaixa; if (!picked) { rr.baixado = false; rr.baixadoBy = ''; rr.baixadoAt = null; } }
     return f; };
   if (isShared()) {
     const c = lsGet(FCACHE_KEY, { folders: [] }); apply(c); lsSet(FCACHE_KEY, c); renderFolder();
     folderBusy = true;
     try {
-      const j = await remote('setPicked', { folderId, itemKey: key, rg: r.rg, endereco: r.endereco, picked, pesoBaixa, mc });
+      const j = await remote('setPicked', { folderId, itemKey: key, rg: r.rg, endereco: r.endereco, picked, pesoBaixa, mc, pilotagem, bandeira, obsBaixa });
       // script antigo na planilha: marca o "pego", mas não guarda Peso Total / MC
       const back = picked && (j.folders || []).flatMap(f => f.items).flatMap(i => i.rolos).find(x => x.rg === r.rg && x.endereco === r.endereco);
-      if (back && !('pesoBaixa' in back)) message('O RG foi marcado como pego, mas a planilha da equipe está com o script antigo e não guardou o Peso Total / MC. Atualize o PLANILHA_PASTAS_Code.gs no Apps Script (veja o README).', 'error');
+      if (back && 'pesoBaixa' in back && !('obsBaixa' in back) && (pilotagem || bandeira || obsBaixa)) message('A baixa foi salva, mas a planilha da equipe está com o script antigo e não guardou o tipo (Pilotagem/Bandeira) nem a observação. Atualize o PLANILHA_PASTAS_Code.gs no Apps Script (veja o README).', 'error');
+      else if (back && !('pesoBaixa' in back)) message('O RG foi marcado como pego, mas a planilha da equipe está com o script antigo e não guardou o Peso Total / MC. Atualize o PLANILHA_PASTAS_Code.gs no Apps Script (veja o README).', 'error');
     }
     catch (e) { message(`${e.message} A marcação não foi gravada.`, 'error'); await syncFolders(true); }
     finally { folderBusy = false; rerenderFolders(); }
@@ -1371,13 +1396,13 @@ async function togglePicked(folderId, key, r, picked, baixa = {}) {
     const d = readFolders(), f = apply(d); if (f) f.updatedAt = Date.now(); writeFolders(d); renderFolder();
   }
 }
-// planilha: pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;status
+// planilha: pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;pego_por;status;peso_baixa;mc;baixado;pilotagem;bandeira;obs_baixa
 function exportFolder() {
   const f = folderById(readFolders(), folderOpenId); if (!f) return;
   const q = v => { const t = String(v ?? '').replace(/[\r\n]+/g, ' '); return /[;"]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
   const num = v => (v === null || v === undefined || v === '') ? '' : String(v).replace('.', ',');
-  const lines = ['pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;pego_por;status;peso_baixa;mc;baixado'];
-  f.items.forEach(it => it.rolos.forEach(r => lines.push([f.name, it.produto, it.descricao, it.op, it.partida, it.enderecos, r.rg, r.endereco, r.armazem, num(r.peso), num(r.gramatura), num(r.cmc), r.picked ? 'sim' : 'nao', r.pickedBy || '', it.status, r.picked ? num(r.pesoBaixa) : '', r.picked ? (r.mc || '') : '', r.picked && r.baixado ? 'sim' : ''].map(q).join(';'))));
+  const lines = ['pasta;produto;descricao;op;partida;enderecos;rg;endereco;armazem;peso;gramatura;cmc;pego;pego_por;status;peso_baixa;mc;baixado;pilotagem;bandeira;obs_baixa'];
+  f.items.forEach(it => it.rolos.forEach(r => lines.push([f.name, it.produto, it.descricao, it.op, it.partida, it.enderecos, r.rg, r.endereco, r.armazem, num(r.peso), num(r.gramatura), num(r.cmc), r.picked ? 'sim' : 'nao', r.pickedBy || '', it.status, r.picked ? num(r.pesoBaixa) : '', r.picked ? (r.mc || '') : '', r.picked && r.baixado ? 'sim' : '', r.picked && r.pilotagem ? 'sim' : '', r.picked && r.bandeira ? 'sim' : '', r.picked ? obsOf(r) : ''].map(q).join(';'))));
   const blob = new Blob(['﻿' + lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `PASTA_${f.name.replace(/[^\w-]+/g, '_')}.csv`;
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
@@ -1398,7 +1423,7 @@ function parseFoldersCsv(text) {
     const f = folders.get(lk), key = itemKey(g('produto'), g('op'), g('partida'));
     let it = f.items.find(x => x.key === key);
     if (!it) { it = { key, produto: g('produto').toUpperCase(), descricao: g('descricao'), op: g('op'), partida: g('partida'), enderecos: g('enderecos'), status: g('status'), savedAt: Date.now(), rolos: [] }; f.items.push(it); }
-    it.rolos.push({ rg: g('rg'), endereco: g('endereco'), armazem: g('armazem'), peso: pn(g('peso')), gramatura: pn(g('gramatura')), cmc: pn(g('cmc')), picked: /^(sim|s|1|true)$/i.test(g('pego')), pickedBy: g('pego_por'), pesoBaixa: pn(g('peso_baixa')), mc: g('mc'), baixado: /^(sim|s|1|true)$/i.test(g('baixado')) });
+    it.rolos.push({ rg: g('rg'), endereco: g('endereco'), armazem: g('armazem'), peso: pn(g('peso')), gramatura: pn(g('gramatura')), cmc: pn(g('cmc')), picked: /^(sim|s|1|true)$/i.test(g('pego')), pickedBy: g('pego_por'), pesoBaixa: pn(g('peso_baixa')), mc: g('mc'), baixado: /^(sim|s|1|true)$/i.test(g('baixado')), pilotagem: /^(sim|s|1|true)$/i.test(g('pilotagem')), bandeira: /^(sim|s|1|true)$/i.test(g('bandeira')), obsBaixa: cleanObs(g('obs_baixa')) });
     nRolls++;
   });
   return { folders: [...folders.values()], nRolls };
@@ -2150,6 +2175,8 @@ $('baixaForm').onsubmit = saveBaixa;
 $('closeBaixa').onclick = $('baixaCancel').onclick = $('baixaCancel1').onclick = closeBaixa;
 $('baixaConfirm').onclick = confirmPickedRg;
 $('baixaUnpick').onclick = unpickBaixa;
+// Pilotagem / Bandeira: cada uma liga e desliga sozinha (dá para marcar as duas)
+document.querySelectorAll('.tipo-opt input').forEach(el => el.addEventListener('change', () => el.closest('.tipo-opt').classList.toggle('on', el.checked)));
 $('baixaModal').addEventListener('mousedown', e => { if (e.target === $('baixaModal')) closeBaixa(); });
 // barra de navegação do celular
 $('navSearch').onclick = () => {

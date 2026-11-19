@@ -23,7 +23,8 @@ const HP = ['id', 'nome', 'criada_em', 'criada_por'];
 const HR = ['pasta_id', 'pasta', 'item_key', 'produto', 'descricao', 'op', 'partida', 'enderecos', 'status',
             'rg', 'endereco', 'armazem', 'peso', 'gramatura', 'cmc', 'pego', 'pego_por', 'pego_em', 'salvo_por', 'salvo_em',
             'peso_baixa', 'mc',              // baixa a fazer no RG coletado (Peso Total e MC)
-            'baixado', 'baixado_por', 'baixado_em'];   // baixa já efetuada no Protheus
+            'baixado', 'baixado_por', 'baixado_em',    // baixa já efetuada no Protheus
+            'pilotagem', 'bandeira', 'obs_baixa'];     // tipo da baixa (pode ser os dois) e observação
 const C = HR.reduce((o, h, i) => (o[h] = i, o), {});
 
 function doGet(e) { return handle_((e && e.parameter) || {}); }
@@ -59,7 +60,7 @@ function handle_(b) {
       else if (a === 'removeItem') removeItem_(b.folderId, b.itemKey);
       else if (a === 'clearItems') clearItems_(b.folderId, !!b.onlyPicked);
       else if (a === 'setBaixado') setBaixado_(b.folderId, b.itemKey, b.rg, b.endereco, !!b.baixado, user);
-      else if (a === 'setPicked') setPicked_(b.folderId, b.itemKey, b.rg, b.endereco, !!b.picked, user, b.pesoBaixa, b.mc);
+      else if (a === 'setPicked') setPicked_(b.folderId, b.itemKey, b.rg, b.endereco, !!b.picked, user, b.pesoBaixa, b.mc, b);
       else return out_({ ok: false, error: 'Ação desconhecida: ' + a });
       SpreadsheetApp.flush();
       extra.ok = true; extra.folders = list_();
@@ -121,7 +122,8 @@ function list_() {
     it.rolos.push({ rg: x[C.rg], endereco: x[C.endereco], armazem: x[C.armazem], peso: num(x[C.peso]), gramatura: num(x[C.gramatura]), cmc: num(x[C.cmc]),
       picked: x[C.pego] === 'sim', pickedBy: x[C.pego_por], pickedAt: Date.parse(x[C.pego_em]) || null,
       pesoBaixa: num(x[C.peso_baixa]), mc: x[C.mc] || '',
-      baixado: x[C.baixado] === 'sim', baixadoBy: x[C.baixado_por], baixadoAt: Date.parse(x[C.baixado_em]) || null });
+      baixado: x[C.baixado] === 'sim', baixadoBy: x[C.baixado_por], baixadoAt: Date.parse(x[C.baixado_em]) || null,
+      pilotagem: x[C.pilotagem] === 'sim', bandeira: x[C.bandeira] === 'sim', obsBaixa: x[C.obs_baixa] || '' });
   });
   folders.forEach(f => { f.updatedAt = Math.max(f.createdAt, ...f.items.map(i => i.savedAt), ...f.items.flatMap(i => i.rolos.map(r => r.pickedAt || 0))); });
   return folders;
@@ -172,6 +174,11 @@ function saveItem_(folderId, item, user) {
     row[C.mc] = picked ? (o && o[C.mc] ? o[C.mc] : s_(r.mc)) : '';
     const bx = picked && o && o[C.baixado] === 'sim';
     row[C.baixado] = bx ? 'sim' : ''; row[C.baixado_por] = bx ? o[C.baixado_por] : ''; row[C.baixado_em] = bx ? o[C.baixado_em] : '';
+    // tipo e observação: mantém o que já estava na planilha; senão, o que veio do aparelho
+    const hadTipo = o && (o[C.pilotagem] || o[C.bandeira] || o[C.obs_baixa]);
+    row[C.pilotagem] = picked ? (hadTipo ? o[C.pilotagem] : (r.pilotagem ? 'sim' : '')) : '';
+    row[C.bandeira] = picked ? (hadTipo ? o[C.bandeira] : (r.bandeira ? 'sim' : '')) : '';
+    row[C.obs_baixa] = picked ? (hadTipo ? o[C.obs_baixa] : obs_(r.obsBaixa)) : '';
     keep.push(row);
   });
   rewrite_(sr, HR.length, keep);
@@ -188,7 +195,9 @@ function clearItems_(folderId, onlyPicked) {
   all.forEach(x => { if (x[C.pasta_id] === folderId && x[C.pego] === 'sim') pegos[x[C.item_key]] = true; });
   rewrite_(sr, HR.length, all.filter(x => !(x[C.pasta_id] === folderId && (!onlyPicked || pegos[x[C.item_key]]))));
 }
-function setPicked_(folderId, key, rg, endereco, picked, user, pesoBaixa, mc) {
+const obs_ = v => s_(v).replace(/\s+/g, ' ').trim().slice(0, 120);
+function setPicked_(folderId, key, rg, endereco, picked, user, pesoBaixa, mc, b) {
+  b = b || {};
   const sr = sheet_(SH_R, HR), all = rows_(sr, HR.length);
   const i = all.findIndex(x => x[C.pasta_id] === folderId && x[C.item_key] === key && x[C.rg] === s_(rg) && x[C.endereco] === s_(endereco));
   if (i < 0) throw new Error('Rolo não encontrado na pasta (a OP pode ter sido atualizada por outro usuário). Toque em Atualizar.');
@@ -196,6 +205,8 @@ function setPicked_(folderId, key, rg, endereco, picked, user, pesoBaixa, mc) {
   // quem pegou e quando ficam os da primeira marcação; a baixa (peso/MC) pode ser corrigida depois
   sr.getRange(i + 2, C.pego + 1, 1, 3).setNumberFormat('@').setValues([[picked ? 'sim' : 'nao', picked ? (already ? old[C.pego_por] : user) : '', picked ? (already ? old[C.pego_em] : now_()) : '']]);
   sr.getRange(i + 2, C.peso_baixa + 1, 1, 2).setNumberFormat('@').setValues([[picked ? s_(pesoBaixa).replace('.', ',') : '', picked ? s_(mc).slice(0, 30) : '']]);
+  // tipo da baixa (Pilotagem e/ou Bandeira) e observação
+  sr.getRange(i + 2, C.pilotagem + 1, 1, 3).setNumberFormat('@').setValues([[picked && b.pilotagem ? 'sim' : '', picked && b.bandeira ? 'sim' : '', picked ? obs_(b.obsBaixa) : '']]);
   if (!picked) sr.getRange(i + 2, C.baixado + 1, 1, 3).setNumberFormat('@').setValues([['', '', '']]);
 }
 // caixa "baixa efetuada": marca que a baixa do RG já foi feita no Protheus
