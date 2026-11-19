@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#0d2f50"><title>NOVA | Consulta de Estoque</title>
 <script>try{if(localStorage.getItem('nova_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <!-- ?v=: mude o número junto com o CACHE do sw.js a cada atualização, para o celular nunca misturar arquivo novo com antigo -->
-<link rel="stylesheet" href="styles.css?v=202611191510">
+<link rel="stylesheet" href="styles.css?v=202611191530">
 </head>
 <body>
 <button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
@@ -55,7 +55,7 @@
   </div>
   <form id="codeForm" class="center-card search-card" novalidate>
     <span class="nova-fx nova-corner tl" aria-hidden="true"></span><span class="nova-fx nova-corner br" aria-hidden="true"></span><span class="nova-fx nova-ring" aria-hidden="true"></span><span class="nova-fx nova-core" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span>
-    <div id="activeFolderBar" class="active-folder hidden"><span>📁 Pasta <b id="activeFolderName"></b></span><button type="button" id="activeFolderOpen" class="link-btn">Ver pasta</button><button type="button" id="activeFolderEnd" class="link-btn">Encerrar</button></div>
+    <div id="activeFolderBar" class="active-folder hidden"><span>📁 Pasta <b id="activeFolderName"></b></span><button type="button" id="activeFolderOpen" class="btn-soft tone-ok">Ver pasta</button><button type="button" id="activeFolderEnd" class="btn-soft">Encerrar</button></div>
     <div id="faceOffer" class="face-offer hidden"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9.5v1M15 9.5v1M12 9.5v3.5h-1M9.5 16c1.5 1 3.5 1 5 0"/></svg><span id="faceOfferText">Entrar com Face ID nas próximas vezes?</span><button id="faceEnable" class="primary" type="button">Ativar</button><button id="faceLater" class="link-btn" type="button">Agora não</button></div>
     <h1>Consultar Material</h1>
     <p class="card-sub">Digite o código do produto (12 caracteres) ou o nome do artigo e escolha na lista.</p>
@@ -206,7 +206,7 @@
     <!-- etapa 1: confirmar o RG coletado (os outros RGs da OP saem da pasta) -->
     <div id="baixaStep1" class="hidden">
       <p id="baixaConfirmText" class="baixa-confirm"></p>
-      <div class="priority-actions bxm-actions"><button id="baixaNotFound" class="secondary bx-notfound hidden" type="button" title="O rolo não está no endereço: tira da sugestão e avisa a equipe"><span aria-hidden="true">✕</span> Não encontrei</button><span class="spacer"></span><button id="baixaCancel1" class="text-button" type="button">Cancelar</button><button id="baixaConfirm" class="primary" type="button">✓ Confirmar RG</button></div>
+      <div class="priority-actions bxm-actions"><button id="baixaNotFound" class="btn-soft tone-warn hidden" type="button" title="O rolo não está no endereço: tira da sugestão e avisa a equipe"><span class="ico" aria-hidden="true">✕</span> Não encontrei</button><span class="spacer"></span><button id="baixaCancel1" class="text-button" type="button">Cancelar</button><button id="baixaConfirm" class="primary" type="button">✓ Confirmar RG</button></div>
     </div>
     <!-- etapa 2: peso, MC, tipo e observação -->
     <div id="baixaStep2">
@@ -215,7 +215,7 @@
         <div class="field"><label for="baixaMc">MC</label><input id="baixaMc" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
       </div>
       <p id="baixaHint" class="baixa-hint"></p>
-      <button id="baixaUseLabel" class="link-btn baixa-use-label hidden" type="button"></button>
+      <button id="baixaUseLabel" class="btn-soft tone-accent baixa-use-label hidden" type="button"></button>
       <div class="baixa-tipo" role="group" aria-label="Tipo da baixa (pode marcar os dois)">
         <span class="baixa-tipo-label">Tipo</span>
         <label class="tipo-opt"><input id="baixaPilot" type="checkbox"> Pilotagem</label>
@@ -224,7 +224,7 @@
       <div class="baixa-obs"><input id="baixaObs" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="Observação (opcional)" aria-label="Observação"><div id="baixaObsRecent" class="obs-recent" aria-label="Observações recentes"></div></div>
       <p id="baixaOldScript" class="bx-oldscript hidden" role="alert"></p>
       <div id="baixaError" class="form-error hidden" role="alert"></div>
-      <div class="priority-actions bxm-actions"><button id="baixaUnpick" class="link-btn baixa-undo hidden" type="button">↩ Não peguei</button><span class="spacer"></span><button id="baixaCancel" class="text-button" type="button">Cancelar</button><button id="baixaSave" class="primary" type="submit">✓ Salvar baixa</button></div>
+      <div class="priority-actions bxm-actions"><button id="baixaUnpick" class="btn-soft tone-warn hidden" type="button"><span class="ico" aria-hidden="true">↩</span> Não peguei</button><span class="spacer"></span><button id="baixaCancel" class="text-button" type="button">Cancelar</button><button id="baixaSave" class="primary" type="submit">✓ Salvar baixa</button></div>
     </div>
   </form>
 </section>
@@ -265,7 +265,7 @@
         <label class="tipo-opt"><input id="etqBand" type="checkbox"> Bandeira</label>
       </div>
       <div class="baixa-obs"><input id="etqObs" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="Observação (opcional)" aria-label="Observação"><div id="etqObsRecent" class="obs-recent" aria-label="Observações recentes"></div></div>
-      <button id="etqUseLabel" class="link-btn baixa-use-label hidden" type="button"></button>
+      <button id="etqUseLabel" class="btn-soft tone-accent baixa-use-label hidden" type="button"></button>
       <p class="baixa-hint">Digite só números: 8 = 0,08 · 80 = 0,80 · 148 = 1,48 · 1875 = 18,75. O MC é opcional.</p>
       <div id="etqError" class="form-error hidden" role="alert"></div>
       <div class="priority-actions etq-actions"><button id="etqAgain" class="secondary" type="button">📷 Ler outra</button><button id="etqStockBtn" class="secondary" type="button">🔍 Ver estoque do produto</button><span class="spacer"></span><button id="etqClose2" class="text-button" type="button">Fechar</button><button id="etqBaixa" class="primary" type="submit">✓ Salvar baixa</button></div>
@@ -312,7 +312,7 @@
         </div>
       </div>
       <div id="folderBody" class="folder-body"></div>
-      <div class="priority-actions"><button id="folderDelete" class="text-button danger" type="button">Excluir pasta</button><button id="folderExport" class="text-button" type="button">↓ Exportar planilha</button><span class="spacer"></span><button id="folderUse" class="secondary" type="button">Usar para salvar</button></div>
+      <div class="priority-actions"><button id="folderDelete" class="btn-soft tone-bad" type="button">Excluir pasta</button><button id="folderExport" class="btn-soft" type="button"><span class="ico" aria-hidden="true">↓</span> Exportar planilha</button><span class="spacer"></span><button id="folderUse" class="secondary" type="button">Usar para salvar</button></div>
     </div>
   </div>
 </section>
@@ -324,10 +324,10 @@
     <div class="priority-actions"><button id="clearHistory" class="text-button danger" type="button">Limpar histórico</button><span class="spacer"></span><button id="historyClose2" class="secondary" type="button">Fechar</button></div>
   </div>
 </section>
-<script src="config.js?v=202611191510"></script>
-<script src="protheus.js?v=202611191510"></script>
-<script src="renderer.js?v=202611191510"></script>
-<script src="relatorio.js?v=202611191510"></script>
-<script src="etiqueta.js?v=202611191510"></script>
+<script src="config.js?v=202611191530"></script>
+<script src="protheus.js?v=202611191530"></script>
+<script src="renderer.js?v=202611191530"></script>
+<script src="relatorio.js?v=202611191530"></script>
+<script src="etiqueta.js?v=202611191530"></script>
 <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body></html>

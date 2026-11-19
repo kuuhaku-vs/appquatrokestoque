@@ -1289,9 +1289,9 @@ function opRow(f, it) {
       });
     } else shown.forEach(r => grid.append(rgChip(r)));
     const foot = document.createElement('div'); foot.className = 'fo-foot';
-    const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'link-btn danger-link'; rm.textContent = 'Tirar da pasta';
+    const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'btn-soft tone-bad'; rm.textContent = 'Tirar da pasta';
     rm.onclick = async () => { if (!(await askOk({ tone: 'danger', kicker: 'TIRAR DA PASTA', title: pv ? `Tirar ${it.descricao || it.produto} da pasta "${f.name}"?` : `Tirar a OP ${it.op} da pasta "${f.name}"?`, card: { label: 'PRODUTO', title: it.descricao || it.produto, lines: [['Código', it.produto], ['RGs', String(it.rolos.length)]] }, okText: 'Tirar da pasta' }))) return; folderOpenOps.delete(it.key); await removeItemFrom(f.id, it.key); updateSaveBtn(); };
-    const close = document.createElement('button'); close.type = 'button'; close.className = 'link-btn'; close.textContent = 'Fechar';
+    const close = document.createElement('button'); close.type = 'button'; close.className = 'btn-soft'; close.textContent = 'Fechar';
     close.onclick = () => { folderOpenOps.delete(it.key); renderFolder(); };
     foot.append(rm, close);
     panel.append(hint, grid, foot); wrap.append(panel);

@@ -1017,12 +1017,33 @@ th.num-cell,td.num-cell{text-align:right}
 .fo-weigh{font-size:15px;color:var(--ok);transform:none!important}
 .baixa-undo{padding:8px 2px;font-size:12.5px;font-weight:700;color:var(--warn)}
 @media(max-width:720px){.baixa-modal .priority-actions .baixa-undo{order:2;flex:1 1 100%;text-align:center}}
-/* "Não encontrei": botão secundário no tom de alerta, mesma altura e cantos do botão principal */
-.bx-notfound{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 16px;border-radius:8px;border-color:var(--warn-line);background:var(--warn-bg);color:var(--warn);font-size:12px;font-weight:700;transition:background .15s,border-color .15s,filter .15s}
-.bx-notfound span{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--warn);color:var(--surface);font-size:10px;font-weight:900;line-height:1}
-.bx-notfound:hover{background:var(--warn-bg);border-color:var(--warn);color:var(--warn);filter:brightness(1.06)}
-.bx-notfound:focus-visible{outline:2px solid var(--warn);outline-offset:2px}
-@media(max-width:720px){.baixa-modal .priority-actions .bx-notfound{order:0;flex:1 1 100%;height:46px;font-size:13.5px}#baixaStep1 .priority-actions .text-button{order:2;margin-left:auto}}
+/* botões "suaves" do app (mesma altura e cantos dos botões principais); tons: alerta, perigo, destaque e ok */
+.btn-soft{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 15px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink-2);font:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;transition:background .15s,border-color .15s,color .15s,filter .15s}
+.btn-soft:hover:not(:disabled){background:var(--accent-soft);border-color:var(--accent-line);color:var(--accent)}
+.btn-soft:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn-soft:disabled{opacity:.55;cursor:default}
+.btn-soft .ico{display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:currentColor;font-size:10px;font-weight:900;line-height:1}
+.btn-soft .ico{color:inherit}.btn-soft .ico{-webkit-text-fill-color:var(--surface)}
+.btn-soft.tone-warn{border-color:var(--warn-line);background:var(--warn-bg);color:var(--warn)}
+.btn-soft.tone-bad{border-color:var(--bad-line);background:var(--bad-bg);color:var(--bad)}
+.btn-soft.tone-accent{border-color:var(--accent-line);background:var(--accent-soft);color:var(--accent)}
+.btn-soft.tone-ok{border-color:var(--ok-line);background:var(--ok-bg);color:var(--ok)}
+.btn-soft.tone-warn:hover:not(:disabled),.btn-soft.tone-bad:hover:not(:disabled),.btn-soft.tone-accent:hover:not(:disabled),.btn-soft.tone-ok:hover:not(:disabled){background:inherit;filter:brightness(1.07);border-color:currentColor;color:inherit}
+.btn-soft.tone-warn:hover:not(:disabled){background:var(--warn-bg);color:var(--warn)}
+.btn-soft.tone-bad:hover:not(:disabled){background:var(--bad-bg);color:var(--bad)}
+.btn-soft.tone-accent:hover:not(:disabled){background:var(--accent-soft);color:var(--accent)}
+.btn-soft.tone-ok:hover:not(:disabled){background:var(--ok-bg);color:var(--ok)}
+.baixa-use-label.btn-soft{display:inline-flex;height:34px;margin:10px 0 0;padding:0 12px}
+.baixa-use-label.btn-soft.hidden{display:none}
+.fo-foot{gap:8px}
+.fo-foot .btn-soft{height:34px}
+.active-folder .btn-soft{height:30px;padding:0 11px;font-size:11.5px}
+@media(max-width:720px){
+  .baixa-modal .priority-actions .btn-soft{order:0;flex:1 1 100%;height:46px;font-size:13.5px}
+  #baixaStep1 .priority-actions .text-button,#baixaStep2 .priority-actions .text-button{order:2;margin-left:auto}
+  .baixa-use-label.btn-soft{width:100%;height:40px}
+  .fo-foot .btn-soft{flex:1;height:42px}
+}
 
 .app-version{margin:14px 0 0;text-align:center;font-size:10.5px;letter-spacing:.04em;color:var(--muted);opacity:.75}
 
@@ -1126,7 +1147,7 @@ th.num-cell,td.num-cell{text-align:right}
   .etq-baixa .baixa-obs{margin-top:6px}
   .etq-baixa .baixa-obs input{height:38px;font-size:13px}
   .etq-baixa .obs-recent{display:none}
-  .etq-baixa .baixa-use-label{margin:2px 0 0;padding:5px 0;font-size:12px}
+  .etq-baixa .baixa-use-label.btn-soft{margin:4px 0 0;height:32px;padding:0 10px;font-size:11.5px}
   .etq-baixa .form-error{margin-top:4px;font-size:11.5px}
   .etq-baixa .etq-actions{margin:6px -10px 0;padding:8px 10px;gap:6px;border-radius:0 0 10px 10px}
   .etq-modal .priority-actions>.primary{height:44px;font-size:13.5px}

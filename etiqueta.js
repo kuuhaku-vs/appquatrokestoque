@@ -284,7 +284,7 @@ async function showEtiqueta(p) {
   $('etqBaixa').disabled = !can; $('etqPeso').disabled = $('etqMc').disabled = !can; tipoDisable('etq', !can);
   $('etqBaixa').textContent = `✓ ${has ? 'Atualizar' : 'Salvar'} baixa${f ? ` em "${f.name}"` : ''}`;
   const u = $('etqUseLabel');
-  if (can && !has && p.pesoLiq > 0) { u.textContent = `Usar o peso da etiqueta (${fmtNum(p.pesoLiq, 2)} kg)`; u.classList.remove('hidden'); }
+  if (can && !has && p.pesoLiq > 0) { u.textContent = `⚖ Usar o peso da etiqueta (${fmtNum(p.pesoLiq, 2)} kg)`; u.classList.remove('hidden'); }
   if (can && window.matchMedia('(hover: hover) and (pointer: fine)').matches) setTimeout(() => $('etqPeso').focus(), 60);   // no celular não abre o teclado sozinho
 }
 function etqError(t) { $('etqError').textContent = t || ''; $('etqError').classList.toggle('hidden', !t); }
@@ -349,7 +349,7 @@ async function baixaEtiquetaIn(folderId, info, baixa) {
   openBaixa(folderId, it, r);
   // atalho: usar o peso líquido impresso na etiqueta
   const b = $('baixaUseLabel');
-  if (info.pesoLiq > 0 && !hasVal(r.pesoBaixa)) { b.textContent = `Usar o peso da etiqueta (${fmtNum(info.pesoLiq, 2)} kg)`; b.onclick = () => { $('baixaPeso').value = fmtNum(info.pesoLiq, 2); $('baixaPeso').focus(); }; b.classList.remove('hidden'); }
+  if (info.pesoLiq > 0 && !hasVal(r.pesoBaixa)) { b.textContent = `⚖ Usar o peso da etiqueta (${fmtNum(info.pesoLiq, 2)} kg)`; b.onclick = () => { $('baixaPeso').value = fmtNum(info.pesoLiq, 2); $('baixaPeso').focus(); }; b.classList.remove('hidden'); }
 }
 
 /* ------------------------------ eventos ------------------------------ */
