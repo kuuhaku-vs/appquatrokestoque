@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#0d2f50"><title>NOVA | Consulta de Estoque</title>
 <script>try{if(localStorage.getItem('nova_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <!-- ?v=: mude o número junto com o CACHE do sw.js a cada atualização, para o celular nunca misturar arquivo novo com antigo -->
-<link rel="stylesheet" href="styles.css?v=202611191530">
+<link rel="stylesheet" href="styles.css?v=202611191600">
 </head>
 <body>
 <button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
@@ -214,6 +214,7 @@
         <div class="field"><label for="baixaPeso">Peso (kg)</label><input id="baixaPeso" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
         <div class="field"><label for="baixaMc">MC</label><input id="baixaMc" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
       </div>
+      <div id="baixaSplitInfo" class="split-info hidden"></div>
       <p id="baixaHint" class="baixa-hint"></p>
       <button id="baixaUseLabel" class="btn-soft tone-accent baixa-use-label hidden" type="button"></button>
       <div class="baixa-tipo" role="group" aria-label="Tipo da baixa (pode marcar os dois)">
@@ -229,6 +230,20 @@
   </form>
 </section>
 <!-- leitura da etiqueta do rolo (QR code) -->
+<!-- Pilotagem + Bandeira marcadas juntas: separa o peso de cada corte e mostra a soma -->
+<section id="splitModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="splitTitle">
+  <form id="splitForm" class="defect-modal split-modal" novalidate>
+    <div class="bxm-head"><div class="bxm-id"><span class="section-kicker baixa-kicker">PILOTAGEM + BANDEIRA</span><h2 id="splitTitle">Peso de cada corte</h2><p id="splitSub" class="bxm-info"></p></div><button id="splitClose" class="close-results" type="button" aria-label="Fechar">×</button></div>
+    <div class="baixa-fields split-fields">
+      <div class="field"><label for="splitPil"><span class="bx-tag pilot">PILOT.</span> Pilotagem (kg)</label><input id="splitPil" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
+      <div class="field"><label for="splitBand"><span class="bx-tag band">BAND.</span> Bandeira (kg)</label><input id="splitBand" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0,00" maxlength="9"></div>
+    </div>
+    <div id="splitRecent" class="obs-recent split-recent" aria-label="Pesos de pilotagem usados por último"></div>
+    <div class="split-sum" aria-live="polite"><span>Total da baixa</span><b id="splitCalc">0,00 + 0,00 = 0,00 kg</b></div>
+    <div id="splitError" class="form-error hidden" role="alert"></div>
+    <div class="priority-actions bxm-actions"><button id="splitCancel" class="text-button" type="button">Cancelar</button><span class="spacer"></span><button id="splitOk" class="primary" type="submit">✓ Usar o total</button></div>
+  </form>
+</section>
 <section id="scanModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="scanTitle">
   <div class="defect-modal scan-modal">
     <div class="modal-heading"><div><span class="section-kicker">ETIQUETA DO ROLO</span><h2 id="scanTitle">Ler QR code</h2><p>Aponte a câmera para o QR code da etiqueta.</p></div><button id="closeScan" class="close-results" type="button" aria-label="Fechar">×</button></div>
@@ -265,6 +280,7 @@
         <label class="tipo-opt"><input id="etqBand" type="checkbox"> Bandeira</label>
       </div>
       <div class="baixa-obs"><input id="etqObs" type="text" maxlength="120" autocomplete="off" enterkeyhint="done" placeholder="Observação (opcional)" aria-label="Observação"><div id="etqObsRecent" class="obs-recent" aria-label="Observações recentes"></div></div>
+      <div id="etqSplitInfo" class="split-info hidden"></div>
       <button id="etqUseLabel" class="btn-soft tone-accent baixa-use-label hidden" type="button"></button>
       <p class="baixa-hint">Digite só números: 8 = 0,08 · 80 = 0,80 · 148 = 1,48 · 1875 = 18,75. O MC é opcional.</p>
       <div id="etqError" class="form-error hidden" role="alert"></div>
@@ -324,10 +340,10 @@
     <div class="priority-actions"><button id="clearHistory" class="text-button danger" type="button">Limpar histórico</button><span class="spacer"></span><button id="historyClose2" class="secondary" type="button">Fechar</button></div>
   </div>
 </section>
-<script src="config.js?v=202611191530"></script>
-<script src="protheus.js?v=202611191530"></script>
-<script src="renderer.js?v=202611191530"></script>
-<script src="relatorio.js?v=202611191530"></script>
-<script src="etiqueta.js?v=202611191530"></script>
+<script src="config.js?v=202611191600"></script>
+<script src="protheus.js?v=202611191600"></script>
+<script src="renderer.js?v=202611191600"></script>
+<script src="relatorio.js?v=202611191600"></script>
+<script src="etiqueta.js?v=202611191600"></script>
 <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body></html>

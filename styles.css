@@ -442,6 +442,24 @@ th.num-cell,td.num-cell{text-align:right}
 .etq-pil p{margin:0 0 8px;font-size:12.5px;line-height:1.4;color:var(--ink)}
 .etq-pil b{color:var(--accent)}
 .etq-pil .primary{width:100%;height:46px}
+/* Pilotagem + Bandeira: janela com o peso de cada corte e a soma */
+.split-modal{width:min(420px,100%);border-top-color:var(--ok)}
+.split-fields{margin-top:16px}
+.split-fields label{display:flex;align-items:center;gap:6px}
+.split-recent{margin-top:8px}
+.split-sum{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding:12px 14px;border-radius:12px;background:var(--ok-row);border:1px solid var(--ok-line)}
+.split-sum span{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ok)}
+.split-sum b{font-size:18px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums}
+.split-info{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;padding:8px 10px;border-radius:10px;background:var(--ok-row);border:1px solid var(--ok-line)}
+.split-info.hidden{display:none}
+.split-line{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.split-part{display:inline-flex;align-items:center;gap:4px}
+.split-part b{color:var(--ink)}
+.split-line strong{color:var(--ok);font-weight:800}
+.split-edit.btn-soft{height:30px;padding:0 10px;font-size:11.5px}
+.bx-peso-split{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.bx-peso-split small{font-size:9.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+@media(max-width:720px){.split-modal{width:100%;margin-top:auto;border-radius:16px 16px 0 0;padding:20px 16px max(16px,env(safe-area-inset-bottom))}#splitModal .priority-actions{flex-wrap:wrap}#splitModal .priority-actions .spacer{display:none}#splitModal .priority-actions .primary{flex:1 1 100%;width:100%;height:48px;font-size:14px;order:-1}#splitModal .priority-actions .text-button{order:2;margin-left:auto}}
 .end-list{display:flex;flex-direction:column;gap:6px}
 .end-btn{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;width:100%;padding:11px 12px;border:1px solid var(--accent-line);border-radius:10px;background:var(--accent-soft);color:var(--ink);text-align:left;cursor:pointer}
 .end-btn b{font-size:15px;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums;letter-spacing:.02em}
@@ -834,6 +852,7 @@ th.num-cell,td.num-cell{text-align:right}
 
 /* ---------- baixa do RG coletado (Peso Total e MC) ---------- */
 #baixaModal{z-index:38}
+#splitModal{z-index:44}   /* abre por cima da janela de baixa e da janela da etiqueta */
 .baixa-modal{width:min(440px,100%)}
 .baixa-kicker{color:var(--ok)}
 .baixa-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
@@ -873,7 +892,7 @@ th.num-cell,td.num-cell{text-align:right}
 .rg-chip.on .rg-baixa.missing{background:#fff7e6;color:#8a5a00}
 .baixa-modal{border-top-color:var(--ok)}
 @media(max-width:720px){
-  #baixaModal{align-items:flex-end}
+  #baixaModal,#splitModal{align-items:flex-end}
   .baixa-modal{width:100%;margin-top:auto;border-radius:16px 16px 0 0;padding:20px 16px max(16px,env(safe-area-inset-bottom))}
   .baixa-modal .priority-actions{flex-wrap:wrap}
   .baixa-modal .priority-actions .primary{flex:1 1 100%;height:48px;font-size:14px;order:-1}
@@ -965,6 +984,7 @@ th.num-cell,td.num-cell{text-align:right}
   .print-baixas td.main .rg{display:block;font-size:1.08em;font-weight:700;white-space:nowrap}
   .print-baixas td.main .sub{display:block;font-size:.84em;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #printBaixas td.main .sub{color:#333!important}
+  .print-baixas td.n .sp{display:block;font-size:.7em;font-weight:500;white-space:nowrap}
   .print-baixas td.main .tag{display:inline-block;margin-left:1.5mm;padding:0 1.2mm;border:.7px solid #000;border-radius:1mm;font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.02em;vertical-align:1px}
   .print-baixas td.ck,.print-baixas th.ck{width:9mm;text-align:center}
   .print-baixas td.ck{font-size:1.35em}
