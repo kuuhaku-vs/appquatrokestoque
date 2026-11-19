@@ -1335,7 +1335,8 @@ function opRow(f, it) {
     };
     if (pil && falta) {
       // pilotagem vinda dos pedidos: endereços clicáveis; cada um abre os RGs que estão nele para escolher qual pegar
-      hint.textContent = need > 1 ? `São ${need} pedidos deste artigo: escolha ${need} RGs, um por pedido (${picked.length} de ${need}). Toque no endereço para ver os RGs:` : 'Toque no endereço para ver os RGs e escolha o que vai pegar:';
+      hint.textContent = need > 1 ? `São ${need} pedidos deste artigo: escolha ${need} RGs, um por pedido (${picked.length} de ${need}).` : '';
+      hint.classList.toggle('hidden', need <= 1);
       grid.className = 'end-list';
       enderecosDe(it).forEach(e => {
         const k = it.key + '@' + e.ad, aberto = folderOpenAddr.has(k);
@@ -1400,7 +1401,7 @@ function baixaStep(n, othersCount = 0, faltam = 0) {
     setTipoUI('baixa', r);   // tipo/observação podem vir prontos (ex.: enviados pelo app de Pedidos)
     renderObsRecent('baixa');
     const ow = $('baixaOldScript'); if (ow) { ow.textContent = OLD_SCRIPT_MSG; ow.classList.toggle('hidden', !oldScriptTipo()); }
-    $('baixaHint').textContent = 'Só números: 106 = 1,06 · 1875 = 18,75 · MC 0 zera.';
+    $('baixaHint').textContent = ''; $('baixaHint').classList.add('hidden');
     $('baixaUnpick').classList.toggle('hidden', !r.picked);
     $('baixaSave').textContent = has ? '✓ Atualizar baixa' : '✓ Salvar baixa';
   }
