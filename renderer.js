@@ -1000,9 +1000,9 @@ function renderFolder() {
     sec.append(list); body.append(sec);
   });
 }
-// Aba "Baixas": só os RGs pegos que têm Peso Total para baixar, em ordem alfabética pela descrição.
+// Aba "Baixas": só os RGs pegos que têm Peso Total para baixar, em ordem alfabética pelo RG.
 // A caixa marca que a baixa já foi feita no Protheus (fica gravada no aparelho e na planilha da equipe).
-const baixaRolls = f => pickedRolls(f).filter(x => hasVal(x.r.pesoBaixa));
+const baixaRolls = f => pickedRolls(f).filter(x => hasVal(x.r.pesoBaixa)).sort((a, b) => ptCmp(a.r.rg, b.r.rg) || ptCmp(a.r.endereco, b.r.endereco));   // RGs em ordem alfabética
 const armOf = r => String(r.armazem ?? '').trim() || '—';
 // Tipo da baixa (Pilotagem e/ou Bandeira: pode marcar os dois) e observação livre, gravados junto com o peso e o MC
 const tipoList = r => [r && r.pilotagem ? 'Pilotagem' : '', r && r.bandeira ? 'Bandeira' : ''].filter(Boolean);
@@ -1237,12 +1237,12 @@ function opRow(f, it) {
   main.append(op, ad);
   const side = document.createElement('span'); side.className = 'fo-side';
   const baixaKg = picked.reduce((t, r) => t + (Number(r.pesoBaixa) || 0), 0);
-  side.textContent = picked.length && !(pil && falta && folderShow !== 'done') ? picked.map(r => r.rg).join(', ') + (baixaKg ? ` · ${fmtNum(baixaKg, 2)} kg` : '') : pil ? (need > 1 ? `${picked.length} de ${need} RGs · ` : '') + `${enderecosDe(it).length} endereço${enderecosDe(it).length === 1 ? '' : 's'}` : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
+  side.textContent = picked.length && !(pil && falta && folderShow !== 'done') ? sortRolos(picked).map(r => r.rg).join(', ') + (baixaKg ? ` · ${fmtNum(baixaKg, 2)} kg` : '') : pil ? (need > 1 ? `${picked.length} de ${need} RGs · ` : '') + `${enderecosDe(it).length} endereço${enderecosDe(it).length === 1 ? '' : 's'}` : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
   const chev = document.createElement('span'); chev.className = 'fo-chev'; chev.textContent = '›';
   row.append(box, main, side, chev);
   const pegaMode = folderShow === 'done' && picked.length;
   if (pegaMode) {
-    const alvo = picked.find(r => !hasVal(r.pesoBaixa)) || picked[0];
+    const alvo = sortRolos(picked).find(r => !hasVal(r.pesoBaixa)) || sortRolos(picked)[0];
     row.title = 'Informar o peso para baixa'; row.removeAttribute('aria-expanded'); chev.textContent = '⚖'; chev.classList.add('fo-weigh');
     row.onclick = () => openBaixa(f.id, it, alvo);
   } else row.onclick = () => { open ? folderOpenOps.delete(it.key) : folderOpenOps.add(it.key); renderFolder(); };
