@@ -11,7 +11,7 @@
 <meta name="theme-color" content="#0d2f50"><title>NOVA | Consulta de Estoque</title>
 <script>try{if(localStorage.getItem('nova_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <!-- ?v=: mude o número junto com o CACHE do sw.js a cada atualização, para o celular nunca misturar arquivo novo com antigo -->
-<link rel="stylesheet" href="styles.css?v=202611241600">
+<link rel="stylesheet" href="styles.css?v=202611241700">
 </head>
 <body>
 <button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
@@ -307,17 +307,31 @@
 <section id="foldersModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="foldersTitle">
   <div class="folders-modal">
     <div id="foldersList">
-      <div class="modal-heading"><div><span class="section-kicker">SEPARAÇÃO</span><h2 id="foldersTitle">Pastas</h2><p id="foldersHint">Crie uma pasta, pesquise o código e salve.</p></div><button id="closeFolders" class="close-results" type="button" aria-label="Fechar">×</button></div>
+      <div class="modal-heading"><div><span class="section-kicker">SEPARAÇÃO</span><div class="fl-title"><h2 id="foldersTitle">Pastas</h2><span id="foldersTeam" class="fl-team"></span></div><p id="foldersHint">Crie uma pasta, pesquise o código e salve.</p></div><button id="closeFolders" class="close-results" type="button" aria-label="Fechar">×</button></div>
       <div id="sharedBox" class="shared-box"></div>
-      <form id="newFolderForm" class="new-folder" novalidate><input id="newFolderName" maxlength="40" placeholder="Nome da Pasta..." autocomplete="off" aria-label="Nome da nova pasta"><button class="primary" type="submit">＋ Criar pasta</button></form>
+      <form id="newFolderForm" class="new-folder" novalidate><input id="newFolderName" maxlength="40" placeholder="Nome da nova pasta…" autocomplete="off" aria-label="Nome da nova pasta"><button class="primary" type="submit">＋ Criar</button></form>
       <div id="folderPickMsg" class="folder-pick hidden"></div>
       <div id="foldersItems" class="folders-items"></div>
       <div class="priority-actions"><button id="foldersImport" class="text-button" type="button">↑ Importar planilha</button><input id="foldersFile" type="file" accept=".csv,text/csv" class="hidden"><span class="spacer"></span><button id="foldersClose2" class="secondary" type="button">Fechar</button></div>
     </div>
     <div id="folderView" class="hidden">
-      <div class="modal-heading"><div><button id="folderBack" class="link-btn back-link" type="button">← Pastas</button><h2 id="folderName"></h2><p id="folderSub"></p></div><button id="closeFolders2" class="close-results" type="button" aria-label="Fechar">×</button></div>
-      <div class="folder-progress"><div id="folderBar"></div></div>
-      <div class="folder-tools"><div class="seg" role="group" aria-label="Mostrar"><button type="button" data-show="todo" class="on">A pegar</button><button type="button" data-show="all">Todas</button><button type="button" data-show="done">Pegas</button><button type="button" data-show="baixas">Baixas</button></div><div class="folder-tools-right"><button id="folderClear" class="secondary" type="button" title="Tirar OPs desta pasta">🧹 Limpar</button><button id="folderScan" class="secondary" type="button" title="Ler o QR code da etiqueta e dar baixa do peso">📷 Ler QR</button><button id="folderSearch" class="secondary" type="button">🔍 Pesquisar</button></div></div>
+      <div class="fv-head">
+        <button id="folderBack" class="fv-back" type="button" aria-label="Voltar para as pastas">‹ Pastas</button>
+        <div class="fv-title"><h2 id="folderName"></h2><span id="folderActiveBadge" class="fv-badge hidden">ATIVA</span></div>
+        <button id="folderMenuBtn" class="fv-dots" type="button" aria-label="Opções da pasta" aria-haspopup="true" title="Opções da pasta">⋯</button>
+        <button id="closeFolders2" class="close-results" type="button" aria-label="Fechar">×</button>
+      </div>
+      <p id="folderSub" class="fv-sub"></p>
+      <div class="fv-steps" role="tablist" aria-label="Etapas">
+        <button type="button" role="tab" data-show="todo" class="fv-step on"><small>1 · SEPARAR</small><b><span>A pegar</span><i>0</i></b></button>
+        <button type="button" role="tab" data-show="done" class="fv-step"><small>2 · PESAR</small><b><span>Pegas</span><i>0</i></b></button>
+        <button type="button" role="tab" data-show="baixas" class="fv-step"><small>3 · BAIXA</small><b><span>Protheus</span><i>0</i></b></button>
+      </div>
+      <div class="fv-prog" aria-hidden="true"><span id="folderBar3" class="p3"></span><span id="folderBar2" class="p2"></span><span id="folderBar1" class="p1"></span></div>
+      <div class="fv-tools">
+        <label class="fv-find"><span aria-hidden="true">⌕</span><input id="folderFilter" type="search" placeholder="Filtrar RG, OP, código…" autocomplete="off" aria-label="Filtrar a pasta por RG, OP, código ou descrição"><button id="folderFilterClear" type="button" class="fv-find-x hidden" aria-label="Limpar filtro">×</button></label>
+        <div id="folderSort" class="seg fv-sort" role="group" aria-label="Ordenar"><button type="button" data-sort="prod" class="on">Produto</button><button type="button" data-sort="end">Endereço</button></div>
+      </div>
       <div id="folderClearBox" class="clear-box hidden" role="group" aria-labelledby="folderClearTitle">
         <b id="folderClearTitle">Limpar a pasta</b>
         <p id="folderClearInfo"></p>
@@ -328,7 +342,20 @@
         </div>
       </div>
       <div id="folderBody" class="folder-body"></div>
-      <div class="priority-actions"><button id="folderDelete" class="btn-soft tone-bad" type="button">Excluir pasta</button><button id="folderExport" class="btn-soft" type="button"><span class="ico" aria-hidden="true">↓</span> Exportar planilha</button><span class="spacer"></span><button id="folderUse" class="secondary" type="button">Usar para salvar</button></div>
+      <div class="fv-dock"><button id="folderScan" class="primary" type="button" title="Ler o QR code da etiqueta do rolo">📷 Ler QR do rolo</button><button id="folderSearch" class="fv-dock-sec" type="button" title="Pesquisar um código e salvar nesta pasta">＋ Código</button></div>
+      <div id="folderMenu" class="fv-menu hidden" role="dialog" aria-modal="true" aria-labelledby="folderMenuTitle">
+        <div class="fv-sheet">
+          <div class="fv-grab" aria-hidden="true"></div>
+          <h3 id="folderMenuTitle"></h3><p id="folderMenuMeta" class="fv-meta"></p>
+          <button id="folderUse" class="fv-mi" type="button"><span aria-hidden="true">📌</span><div><b>Usar para salvar</b><small>OPs salvas na pesquisa vão para esta pasta</small></div></button>
+          <button id="folderAllToggle" class="fv-mi" type="button" role="switch" aria-checked="false"><span aria-hidden="true">☰</span><div><b>Mostrar OPs já pegas em Separar</b><small>como a antiga aba “Todas”</small></div><i class="fv-tg"></i></button>
+          <button id="folderClear" class="fv-mi" type="button"><span aria-hidden="true">🧹</span><div><b>Limpar…</b><small>tirar as OPs pegas ou esvaziar a pasta</small></div></button>
+          <button id="folderExport" class="fv-mi" type="button"><span aria-hidden="true">↓</span><div><b>Exportar planilha (CSV)</b></div></button>
+          <button id="folderRename" class="fv-mi" type="button"><span aria-hidden="true">✎</span><div><b>Renomear pasta</b></div></button>
+          <button id="folderDelete" class="fv-mi bad" type="button"><span aria-hidden="true">🗑</span><div><b>Excluir pasta</b></div></button>
+          <button id="folderMenuClose" class="btn-soft fv-menu-close" type="button">Fechar</button>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -340,10 +367,10 @@
     <div class="priority-actions"><button id="clearHistory" class="text-button danger" type="button">Limpar histórico</button><span class="spacer"></span><button id="historyClose2" class="secondary" type="button">Fechar</button></div>
   </div>
 </section>
-<script src="config.js?v=202611241600"></script>
-<script src="protheus.js?v=202611241600"></script>
-<script src="renderer.js?v=202611241600"></script>
-<script src="relatorio.js?v=202611241600"></script>
-<script src="etiqueta.js?v=202611241600"></script>
+<script src="config.js?v=202611241700"></script>
+<script src="protheus.js?v=202611241700"></script>
+<script src="renderer.js?v=202611241700"></script>
+<script src="relatorio.js?v=202611241700"></script>
+<script src="etiqueta.js?v=202611241700"></script>
 <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body></html>
