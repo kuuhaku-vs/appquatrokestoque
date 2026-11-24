@@ -1095,6 +1095,41 @@ function renderObsRecent(px) {
   });
 }
 function tipoDisable(px, off) { ['Pilot', 'Band', 'Obs'].forEach(id => { $(px + id).disabled = off; }); }
+// Código MC de cada produto (regra do app Busca de MC: NCM do cadastro -> MC), para copiar na hora da baixa.
+// Buscado uma vez por produto (o protheus.js guarda no aparelho); as linhas já desenhadas são atualizadas sem redesenhar a lista.
+const mcCodes = new Map();   // produto -> { mc, ncm, motivo }
+const mcPending = new Set(); let mcRetryAt = 0, mcOff = false;
+async function loadMcCodes(prods) {
+  if (mcOff || Date.now() < mcRetryAt) return;
+  const need = [...new Set(prods)].filter(c => c && !mcCodes.has(c) && !mcPending.has(c));
+  if (!need.length) return;
+  need.forEach(c => mcPending.add(c));
+  try {
+    const r = await api('/api/mc?codes=' + encodeURIComponent(need.join(',')));
+    Object.entries((r && r.items) || {}).forEach(([c, v]) => mcCodes.set(c, v));
+  } catch (e) {
+    if (e && e.status === 404) mcOff = true;   // NOVA do computador sem essa rota: o botão não aparece
+    else mcRetryAt = Date.now() + 60000;        // sem sinal / Protheus lento: tenta de novo daqui a 1 min
+  } finally { need.forEach(c => mcPending.delete(c)); }
+  document.querySelectorAll('.bx-copymc[data-prod]').forEach(paintMcBtn);
+}
+function paintMcBtn(btn) {
+  const v = mcCodes.get(btn.dataset.prod);
+  btn.classList.remove('ok', 'none', 'wait');
+  if (mcOff) { btn.hidden = true; return; }
+  btn.hidden = false;
+  if (!v) { btn.textContent = 'MC …'; btn.classList.add('wait'); btn.disabled = true; btn.title = 'Buscando o código MC no Protheus'; return; }
+  btn.disabled = false;
+  if (v.mc) { btn.textContent = '⧉ ' + v.mc; btn.title = `Copiar o código MC ${v.mc} (NCM ${v.ncm})`; btn.setAttribute('aria-label', `Copiar o código MC ${v.mc}`); }
+  else { btn.textContent = 'MC —'; btn.classList.add('none'); btn.title = v.motivo || 'Sem código MC'; btn.setAttribute('aria-label', 'Código MC indisponível: ' + (v.motivo || '')); }
+}
+async function copyMc(btn) {
+  const v = mcCodes.get(btn.dataset.prod);
+  if (!v || !v.mc) { message(v && v.motivo ? `Sem código MC para ${btn.dataset.prod}: ${v.motivo}` : 'Código MC ainda não carregado.', 'error'); return; }
+  const ok = await copyText(v.mc);
+  if (ok) { btn.textContent = '✓ ' + v.mc; btn.classList.add('ok'); setTimeout(() => paintMcBtn(btn), 1400); message(`Código MC ${v.mc} copiado.`, 'success'); }
+  else message('Não foi possível copiar neste navegador.', 'error');
+}
 function renderBaixas(f, body) {
   const list = baixaRolls(f);
   if (!list.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Nenhum RG com Peso Total para baixar. Ao marcar o RG em "A pegar", informe o Peso Total.'; body.append(e); return; }
@@ -1120,7 +1155,7 @@ function renderBaixas(f, body) {
     const row = document.createElement('div'); row.className = 'bx-row bx-item' + (r.baixado ? ' done' : '');
     row.tabIndex = 0; row.setAttribute('role', 'button'); row.title = 'Toque para alterar a baixa (peso, MC, tipo e observação)';
     row.setAttribute('aria-label', `RG ${r.rg}, ${it.descricao || 'Produto'}, armazém ${armOf(r)}, ${fmtNum(Number(r.pesoBaixa), 2)} kg${tipoText(r) ? ', ' + tipoText(r) : ''}${obsOf(r) ? ', observação: ' + obsOf(r) : ''}. Alterar a baixa`);
-    row.onclick = e => { if (e.target.closest('.bx-check, .bx-copyrg')) return; openBaixa(f.id, it, r); };
+    row.onclick = e => { if (e.target.closest('.bx-check, .bx-copyrg, .bx-copymc')) return; openBaixa(f.id, it, r); };
     row.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && e.target === row) { e.preventDefault(); openBaixa(f.id, it, r); } };
     const ck = document.createElement('label'); ck.className = 'bx-check'; ck.title = 'Baixa efetuada';
     const inp = document.createElement('input'); inp.type = 'checkbox'; inp.checked = !!r.baixado; inp.setAttribute('aria-label', `Baixa efetuada do RG ${r.rg}`);
@@ -1145,7 +1180,11 @@ function renderBaixas(f, body) {
     top.append(rg);
     tipoList(r).forEach(t => { const b = document.createElement('span'); b.className = 'bx-tag ' + (t === 'Pilotagem' ? 'pilot' : 'band'); b.textContent = t === 'Pilotagem' ? 'PILOT.' : 'BAND.'; b.title = t; top.append(b); });
     const dn = document.createElement('small'); dn.className = 'bx-sub'; dn.textContent = `${it.descricao || 'Produto'} · ${it.produto}` + (r.baixado && r.baixadoBy ? ' · baixado por ' + r.baixadoBy : '');
-    c1.append(top, dn);
+    // código MC do produto (pelo NCM do cadastro), com botão de copiar, igual ao do RG
+    const mcb = document.createElement('button'); mcb.type = 'button'; mcb.className = 'bx-copymc'; mcb.dataset.prod = String(it.produto || '').trim().toUpperCase();
+    mcb.onclick = e => { e.stopPropagation(); copyMc(mcb); };
+    paintMcBtn(mcb);
+    c1.append(top, dn, mcb);
     if (obsOf(r)) { const o = document.createElement('small'); o.className = 'bx-obs'; o.textContent = obsOf(r); o.title = obsOf(r); c1.append(o); }
     // armazém do rolo (gravado quando a OP foi salva na pasta), antes do peso e do MC
     const ca = document.createElement('span'); ca.className = 'bx-arm' + (r.armazem ? '' : ' none'); ca.textContent = armOf(r); ca.title = r.armazem ? `Armazém ${r.armazem}` : 'Armazém não informado (OP salva por uma versão antiga)';
@@ -1159,6 +1198,7 @@ function renderBaixas(f, body) {
   });
   body.append(tbl);
   if (printOptsFor === f.id) buildPrintOpts(f, body);
+  loadMcCodes(list.map(x => String(x.it.produto || '').trim().toUpperCase()));
 }
 // copia só o RG (para colar no Protheus na hora da baixa)
 async function copyRg(rg, btn) {
@@ -1177,7 +1217,7 @@ async function copyText(t) {
 async function copyBaixas(f) {
   const list = baixaRolls(f);
   const lines = [`Baixas da pasta ${f.name}`, ''];
-  list.forEach(({ it, r }) => lines.push(`${r.baixado ? '[x]' : '[ ]'} RG ${r.rg} · ${it.descricao || it.produto} (${it.produto}) · Armazém ${armOf(r)} · Peso ${fmtNum(Number(r.pesoBaixa), 2)} kg · MC ${hasVal(r.mc) ? r.mc : '—'}${splitOf(r) ? ` (${splitText(r)})` : ''}${tipoText(r) ? ' · ' + tipoText(r) : ''}${obsOf(r) ? ' · Obs: ' + obsOf(r) : ''}`));
+  list.forEach(({ it, r }) => lines.push(`${r.baixado ? '[x]' : '[ ]'} RG ${r.rg} · ${it.descricao || it.produto} (${it.produto})${mcCodes.get(String(it.produto || '').trim().toUpperCase())?.mc ? ' · Cód. MC ' + mcCodes.get(String(it.produto || '').trim().toUpperCase()).mc : ''} · Armazém ${armOf(r)} · Peso ${fmtNum(Number(r.pesoBaixa), 2)} kg · MC ${hasVal(r.mc) ? r.mc : '—'}${splitOf(r) ? ` (${splitText(r)})` : ''}${tipoText(r) ? ' · ' + tipoText(r) : ''}${obsOf(r) ? ' · Obs: ' + obsOf(r) : ''}`));
   try { await navigator.clipboard.writeText(lines.join('\n')); message('Lista de baixas copiada. Cole no WhatsApp, e-mail ou bloco de notas.', 'success'); }
   catch { message('Não foi possível copiar neste navegador. Use 🖨 Imprimir ou ↓ Exportar planilha.', 'error'); }
 }

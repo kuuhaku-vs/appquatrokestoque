@@ -936,6 +936,13 @@ th.num-cell,td.num-cell{text-align:right}
 .bx-copyrg{justify-self:end;width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--muted);font-size:15px;line-height:1;padding:0;cursor:pointer}
 .bx-copyrg:hover{color:var(--accent);border-color:var(--accent-line)}
 .bx-copyrg.ok{color:#fff;background:var(--ok);border-color:var(--ok)}
+.bx-copymc{align-self:flex-start;margin-top:3px;display:inline-flex;align-items:center;gap:4px;height:26px;padding:0 9px;border:1px solid var(--accent-line);border-radius:7px;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:750;font-variant-numeric:tabular-nums;letter-spacing:.02em;line-height:1;cursor:pointer;white-space:nowrap}
+.bx-copymc:hover{border-color:var(--accent)}
+.bx-copymc.ok{color:#fff;background:var(--ok);border-color:var(--ok)}
+.bx-copymc.wait,.bx-copymc.none{background:transparent;border-color:var(--line);color:var(--muted);font-weight:600}
+.bx-copymc.wait{cursor:default}
+.bx-copymc[hidden]{display:none}
+.bx-row.done .bx-copymc:not(.ok){background:transparent;border-color:var(--line);color:var(--ok)}
 .bx-row.done{background:var(--ok-row)}
 .bx-row.leaving{opacity:.45;pointer-events:none;background:var(--ok-row)}
 .bx-row.done .bx-rg,.bx-row.done strong{color:var(--ok);text-decoration:line-through}
