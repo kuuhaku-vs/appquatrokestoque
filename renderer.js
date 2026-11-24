@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const NOVA_VERSION = '12/11 14:30';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
+const NOVA_VERSION = '24/11 17:00';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -110,12 +110,13 @@ function askConfirm(o = {}) {
   let m = $('askModal');
   if (!m) {
     m = document.createElement('section'); m.id = 'askModal'; m.className = 'modal-backdrop hidden'; m.setAttribute('role', 'alertdialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'askTitle');
-    m.innerHTML = '<div class="ask-modal"><div class="ask-icon" aria-hidden="true"></div><span class="section-kicker ask-kicker"></span><h2 id="askTitle"></h2><p class="ask-text"></p><div class="ask-card"><span></span><b></b><div class="ask-lines"></div></div><p class="ask-note"></p><div class="ask-actions"><button type="button" class="secondary ask-cancel"></button><button type="button" class="secondary ask-alt"></button><button type="button" class="primary ask-ok"></button></div></div>';
+    m.innerHTML = '<div class="ask-modal"><div class="ask-icon" aria-hidden="true"></div><span class="section-kicker ask-kicker"></span><h2 id="askTitle"></h2><p class="ask-text"></p><input class="ask-input hidden" maxlength="40" autocomplete="off" aria-labelledby="askTitle"><div class="ask-card"><span></span><b></b><div class="ask-lines"></div></div><p class="ask-note"></p><div class="ask-actions"><button type="button" class="secondary ask-cancel"></button><button type="button" class="secondary ask-alt"></button><button type="button" class="primary ask-ok"></button></div></div>';
     document.body.append(m);
     m.addEventListener('mousedown', e => { if (e.target === m) closeAsk(false); });
     m.querySelector('.ask-cancel').onclick = () => closeAsk(false);
     m.querySelector('.ask-alt').onclick = () => closeAsk('alt');
     m.querySelector('.ask-ok').onclick = () => closeAsk('ok');
+    m.querySelector('.ask-input').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); closeAsk('ok'); } };
   }
   if (askResolve) askResolve(false);
   const q = sel => m.querySelector(sel), tone = o.tone || 'accent';
@@ -136,12 +137,15 @@ function askConfirm(o = {}) {
   q('.ask-ok').classList.toggle('danger-btn', tone === 'danger');
   q('.ask-cancel').textContent = o.cancelText || 'Cancelar';
   q('.ask-alt').textContent = o.altText || ''; q('.ask-alt').classList.toggle('hidden', !o.altText);
+  const inp = q('.ask-input'); inp.classList.toggle('hidden', !o.input); inp.value = o.input ? String(o.value || '') : '';
   m.classList.remove('hidden');
-  setTimeout(() => q('.ask-ok').focus(), 50);
+  setTimeout(() => { if (o.input) { inp.focus(); inp.select(); } else q('.ask-ok').focus(); }, 50);
   return new Promise(res => { askResolve = res; });
 }
 function closeAsk(v) { const m = $('askModal'); if (m) m.classList.add('hidden'); const r = askResolve; askResolve = null; if (r) r(v); }
 const askOk = async o => (await askConfirm(o)) === 'ok';
+// pede um texto curto (ex.: novo nome da pasta) -> texto ou null se cancelar
+const askText = async o => ((await askConfirm({ ...o, input: true })) === 'ok' ? $('askModal').querySelector('.ask-input').value : null);
 
 /* ------------------------------ celular ------------------------------ */
 const IS_THIS_PC = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname);
@@ -617,6 +621,7 @@ function refreshAfterDefect() {
 // Sem planilha configurada: ficam só neste aparelho (navegador).
 const FOLDERS_KEY = 'nova_pastas_v1', FCACHE_KEY = 'nova_pastas_cache_v1', FACTIVE_KEY = 'nova_pastas_active', PURL_KEY = 'nova_pastas_url', PKEY_KEY = 'nova_pastas_key';
 const FOLDER_POLL_MS = 20000;
+let folderAll = false, folderFilterText = '';
 let folderOpenId = null, folderShow = 'todo', folderPickPending = null, folderTimer = null, folderSyncAt = 0, folderBusy = false;
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
@@ -782,16 +787,17 @@ async function openFolders() {
   startFolderPoll();
   if (await syncFolders(false)) { rerenderFolders(); updateFolderUi(); }
 }
-function closeFolders() { $('foldersModal').classList.add('hidden'); folderPickPending = null; stopFolderPoll(); resetFolderOpen(); }
+function closeFolders() { closeFolderMenu(); $('foldersModal').classList.add('hidden'); folderPickPending = null; stopFolderPoll(); resetFolderOpen(); }
 // fecha os itens e endereços abertos (ao trocar de pasta, de aba ou sair das pastas)
 function resetFolderOpen() { folderOpenOps.clear(); folderOpenAddr.clear(); }
 function renderSharedBox() {
   const box = $('sharedBox'); box.replaceChildren();
+  const team = $('foldersTeam'); team.replaceChildren(); team.className = 'fl-team';
   const fixedUrl = !!(window.NOVA_CONFIG && window.NOVA_CONFIG.pastasUrl);
   if (isShared()) {
     box.className = 'shared-box on';
     const pill = document.createElement('button'); pill.type = 'button'; pill.className = 'conn-pill';
-    pill.innerHTML = '<i></i>Conectado'; pill.title = `Pastas compartilhadas com a equipe (Planilha Google)${folderSyncAt ? ' · atualizado ' + new Date(folderSyncAt).toLocaleTimeString('pt-BR') : ''}`;
+    pill.innerHTML = '<i></i>EQUIPE'; pill.title = `Pastas compartilhadas com a equipe (Planilha Google)${folderSyncAt ? ' · atualizado ' + new Date(folderSyncAt).toLocaleTimeString('pt-BR') : ''}`;
     const menu = document.createElement('div'); menu.className = 'conn-menu hidden';
     const info = document.createElement('small'); info.textContent = `Planilha Google${folderSyncAt ? ' · ' + new Date(folderSyncAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}`;
     const up = document.createElement('button'); up.type = 'button'; up.className = 'link-btn'; up.textContent = '↻ Atualizar';
@@ -800,12 +806,13 @@ function renderSharedBox() {
     off.onclick = async () => { if (!(await askOk({ tone: 'warn', kicker: 'PASTAS DA EQUIPE', title: 'Desconectar este aparelho das pastas compartilhadas?', text: 'Nada é apagado da planilha.', okText: 'Desconectar' }))) return; lsDel(PKEY_KEY); if (!fixedUrl) lsDel(PURL_KEY); lsDel(FCACHE_KEY); stopFolderPoll(); renderFoldersList(); updateFolderUi(); };
     menu.append(info, up, off);
     pill.onclick = () => menu.classList.toggle('hidden');
-    box.append(pill, menu);
+    team.append(pill, menu);   // status da equipe fica ao lado do título "Pastas"
+    box.className = 'shared-box hidden';
     const local = localFolders().folders.filter(f => f.items.length);
     if (local.length) {
       const mig = document.createElement('button'); mig.type = 'button'; mig.className = 'secondary migrate-btn';
       mig.textContent = `⇪ Enviar ${local.length} pasta(s) deste aparelho para a planilha`;
-      mig.onclick = migrateLocal; box.append(mig);
+      mig.onclick = migrateLocal; box.append(mig); box.className = 'shared-box on';
     }
     return;
   }
@@ -853,19 +860,40 @@ function renderFoldersList() {
   renderSharedBox();
   const d = readFolders(), box = $('foldersItems'); box.replaceChildren();
   if (!d.folders.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Nenhuma pasta ainda. Dê um nome acima e toque em Criar pasta.'; box.append(e); return; }
-  [...d.folders].sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0)).forEach(f => {
-    const st = folderStats(f);
-    const card = document.createElement('div'); card.className = 'folder-card' + (f.id === d.active ? ' active' : '');
+  // pastas em uso primeiro (mais recentes no topo); vazias no fim, separadas
+  const byDate = (a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0);
+  const used = d.folders.filter(f => f.items.length).sort(byDate), empty = d.folders.filter(f => !f.items.length).sort(byDate);
+  const sect = t => { const h = document.createElement('div'); h.className = 'fl-sect'; h.textContent = t; box.append(h); };
+  const card = f => {
+    const c = stageCounts(f), bar = stageBar(f), ativa = f.id === d.active, ped = f.items.length && f.items.every(isPilItem);
+    const el = document.createElement('div'); el.className = 'folder-card' + (ativa ? ' active' : '') + (f.items.length ? '' : ' empty');
     const info = document.createElement('button'); info.type = 'button'; info.className = 'folder-info';
-    const n = document.createElement('b'); n.textContent = '📁 ' + f.name + (f.id === d.active ? '  · ativa' : '');
-    const os = opStats(f); const m = document.createElement('span'); m.textContent = `${os.done} de ${os.ops} OP(s) pegas${f.createdBy ? ' · ' + f.createdBy : ''} · ${fmtDay(f.createdAt)}`;
-    const bar = document.createElement('i'); bar.className = 'mini-bar'; bar.style.setProperty('--p', os.ops ? (os.done / os.ops * 100).toFixed(0) + '%' : '0%');
-    info.append(n, m, bar);
+    const ico = document.createElement('span'); ico.className = 'fl-ico'; ico.textContent = ped ? '📦' : '📁'; ico.setAttribute('aria-hidden', 'true');
+    const m = document.createElement('span'); m.className = 'fl-main';
+    const n = document.createElement('span'); n.className = 'fl-name';
+    const nb = document.createElement('b'); nb.textContent = f.name; n.append(nb);
+    if (ativa) { const t = document.createElement('span'); t.className = 'fv-badge'; t.textContent = 'ATIVA'; n.append(t); }
+    if (ped) { const t = document.createElement('span'); t.className = 'fv-badge team'; t.textContent = 'APP PEDIDOS'; n.append(t); }
+    m.append(n);
+    if (f.items.length) {
+      const pb = document.createElement('span'); pb.className = 'fv-prog sm';
+      [['p3', bar.s3], ['p2', bar.s2], ['p1', bar.s1]].forEach(([k, w]) => { const x = document.createElement('span'); x.className = k; x.style.width = w.toFixed(1) + '%'; pb.append(x); });
+      const cn = document.createElement('span'); cn.className = 'fl-cnt';
+      [['c1', c.todo, 'separar'], ['c2', c.done, 'pesar'], ['c3', c.baixas, 'baixa']].forEach(([k, v, t]) => { const x = document.createElement('span'); const i = document.createElement('i'); i.className = k; i.textContent = v; x.append(i, ' ' + t); cn.append(x); });
+      m.append(pb, cn);
+    }
+    const meta = document.createElement('small'); meta.textContent = [f.items.length ? '' : 'vazia', f.createdBy, fmtDay(f.updatedAt || f.createdAt)].filter(Boolean).join(' · ');
+    m.append(meta);
+    const ch = document.createElement('span'); ch.className = 'fl-chev'; ch.textContent = '›'; ch.setAttribute('aria-hidden', 'true');
+    info.append(ico, m, ch);
+    info.setAttribute('aria-label', `Pasta ${f.name}${ativa ? ', ativa' : ''}: ${c.todo} para separar, ${c.done} para pesar, ${c.baixas} para baixa`);
     info.onclick = () => { if (folderPickPending) { const pend = folderPickPending; folderPickPending = null; closeFolders(); typeof pend === 'function' ? pend(f.id) : saveGroupTo(f.id); } else openFolder(f.id); };
-    card.append(info);
-    if (folderPickPending) { const b = document.createElement('button'); b.type = 'button'; b.className = 'primary'; b.textContent = typeof folderPickPending === 'function' ? 'Usar esta pasta' : 'Salvar aqui'; b.onclick = info.onclick; card.append(b); }
-    box.append(card);
-  });
+    el.append(info);
+    if (folderPickPending) { const b = document.createElement('button'); b.type = 'button'; b.className = 'primary'; b.textContent = typeof folderPickPending === 'function' ? 'Usar esta pasta' : 'Salvar aqui'; b.onclick = info.onclick; el.append(b); }
+    box.append(el);
+  };
+  if (used.length) { sect('EM ANDAMENTO'); used.forEach(card); }
+  if (empty.length) { sect('VAZIAS'); empty.forEach(card); }
 }
 async function createFolder(name) {
   name = String(name || '').trim().replace(/\s+/g, ' ').slice(0, 40);
@@ -891,7 +919,7 @@ async function createFolder(name) {
   message(existed ? `A pasta "${name}" já existia e agora está ativa. Qual código deseja procurar?` : `Pasta "${name}" criada. Qual código deseja procurar? Abra a OP e toque em 💾 Salvar.`, 'success');
 }
 async function openFolder(id) {
-  if (folderOpenId !== id) resetFolderOpen();
+  if (folderOpenId !== id) { resetFolderOpen(); folderFilterText = ''; $('folderFilter').value = ''; folderAll = false; }
   folderOpenId = id;
   closeClearBox();
   $('foldersList').classList.add('hidden'); $('folderView').classList.remove('hidden');
@@ -961,47 +989,137 @@ const pickedRolls = f => sortItems(f.items).flatMap(it => sortRolos(it.rolos).fi
 const hasVal = v => v !== null && v !== undefined && v !== '';
 const opHasBaixa = it => { const p = opPicked(it); return p.length > 0 && p.every(r => hasVal(r.pesoBaixa)); };   // todos os RGs pegos já têm peso
 function folderSubText(f) { const s = opStats(f); return `${s.done} de ${s.ops} OP(s) pegas${isShared() ? ' · compartilhada' : ' · só neste aparelho'}`; }
+// ---- etapas: 1 Separar (OPs a pegar) · 2 Pesar (RGs pegos sem peso) · 3 Baixa (RGs com peso, para baixar no Protheus)
+const pesarRolls = f => pickedRolls(f).filter(x => !hasVal(x.r.pesoBaixa));
+function stageCounts(f) { return { todo: opStats(f).todo, done: pesarRolls(f).length, baixas: baixaRolls(f).length }; }
+// barra da pasta: cada OP numa etapa (baixa = todos os RGs pegos com peso; pesar = pega, falta peso; separar = o resto)
+function stageBar(f) {
+  const n = f.items.length || 1; let s3 = 0, s2 = 0;
+  f.items.forEach(it => { if (opHasBaixa(it)) s3++; else if (opPicked(it).length) s2++; });
+  return { s3: s3 / n * 100, s2: s2 / n * 100, s1: f.items.length ? (f.items.length - s3 - s2) / n * 100 : 0 };
+}
+// ---- filtro (RG, OP, código, descrição, endereço) e ordem (produto ou endereço/rua)
+const SORT_KEY = 'nova_pastas_ordem';
+let folderSort = lsGet(SORT_KEY, 'prod') === 'end' ? 'end' : 'prod';
+const normTxt = v => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+const filterWords = () => normTxt(folderFilterText).split(/\s+/).filter(Boolean);
+function matchText(words, parts) { if (!words.length) return true; const h = normTxt(parts.join(' ')); return words.every(w => h.includes(w)); }
+const itemText = it => [it.descricao, it.produto, it.op, it.partida, it.status, it.enderecos, ...(it.rolos || []).flatMap(r => [r.rg, r.endereco])];
+const addrList = it => { const set = new Set((it.rolos || []).map(r => String(r.endereco || '').trim()).filter(Boolean)); if (!set.size) String(it.enderecos || '').split(' - ').map(x => x.trim()).filter(Boolean).forEach(x => set.add(x)); return [...set].sort(ptCmp); };
+const ruaOf = ad => { const d = String(ad || '').replace(/\D/g, ''); return d.length >= 2 ? d.slice(0, 2) : ''; };   // rua = 2 primeiros dígitos do endereço
+const ruaLabel = r => r ? `Rua ${r}` : 'Sem endereço';
 function renderFolder() {
   const d = readFolders(), f = folderById(d, folderOpenId);
   if (!f) { $('folderView').classList.add('hidden'); $('foldersList').classList.remove('hidden'); renderFoldersList(); return; }
-  const s = opStats(f);
-  $('folderName').textContent = '📁 ' + f.name;
+  const c = stageCounts(f), bar = stageBar(f), ativa = d.active === f.id;
+  $('folderName').textContent = f.name;
+  $('folderActiveBadge').classList.toggle('hidden', !ativa);
   $('folderSub').textContent = folderSubText(f);
-  $('folderBar').style.width = s.ops ? (s.done / s.ops * 100).toFixed(1) + '%' : '0%';
-  $('folderUse').textContent = d.active === f.id ? '✓ Pasta ativa' : 'Usar para salvar';
-  $('folderUse').disabled = d.active === f.id;
-  document.querySelectorAll('#folderView .folder-tools .seg button').forEach(b => {
-    b.classList.toggle('on', b.dataset.show === folderShow);
-    const n = b.dataset.show === 'todo' ? s.todo : b.dataset.show === 'done' ? f.items.filter(it => opPicked(it).length && !opHasBaixa(it)).length : b.dataset.show === 'baixas' ? baixaRolls(f).length : s.ops;
-    b.textContent = `${{ todo: 'A pegar', all: 'Todas', done: 'Pegas', baixas: 'Baixas' }[b.dataset.show]} ${n}`;
+  $('folderBar3').style.width = bar.s3.toFixed(1) + '%'; $('folderBar2').style.width = bar.s2.toFixed(1) + '%'; $('folderBar1').style.width = bar.s1.toFixed(1) + '%';
+  renderFolderMenu(f, ativa);
+  document.querySelectorAll('#folderView .fv-step').forEach(b => {
+    const on = b.dataset.show === folderShow, n = c[b.dataset.show];
+    b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on));
+    b.classList.toggle('zero', !n);
+    b.querySelector('i').textContent = n;
   });
+  document.querySelectorAll('#folderSort button').forEach(b => b.classList.toggle('on', b.dataset.sort === folderSort));
+  $('folderSort').classList.toggle('hidden', folderShow === 'baixas');
+  $('folderFilterClear').classList.toggle('hidden', !folderFilterText);
   const body = $('folderBody'); body.replaceChildren();
   body.classList.toggle('baixas-mode', folderShow === 'baixas');
-  if (!f.items.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Pasta vazia. Toque em "Pesquisar código", abra a OP e use 💾 Salvar.'; body.append(e); return; }
+  if (!f.items.length) { body.append(emptyBox('Pasta vazia. Toque em ＋ Código, pesquise, abra a OP e use 💾 Salvar.')); return; }
   if (folderShow === 'baixas') return renderBaixas(f, body);
-  const byProd = new Map();
-  sortItems(f.items).forEach(it => {
-    const has = opPicked(it).length > 0, keep = folderOpenOps.has(it.key); // OP aberta continua na tela até fechar
-    if (folderShow === 'todo' && opDone(it) && !keep) return;   // pilotagem de vários pedidos fica em "A pegar" até ter um RG por pedido
-    if (folderShow === 'done' && (!has || opHasBaixa(it)) && !keep) return;
-    if (!byProd.has(it.produto)) byProd.set(it.produto, []);
-    byProd.get(it.produto).push(it);
+  if (folderShow === 'done') return renderPesar(f, body);
+  const words = filterWords();
+  const shown = sortItems(f.items).filter(it => {
+    const keep = folderOpenOps.has(it.key);   // OP aberta continua na tela até fechar
+    if (!folderAll && opDone(it) && !keep) return false;   // pilotagem de vários pedidos fica em Separar até ter um RG por pedido
+    return keep || matchText(words, itemText(it));
   });
-  if (!byProd.size) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = folderShow === 'todo' ? '🎉 Todas as OPs desta pasta já foram pegas.' : 'Nenhuma OP pega aguardando peso. As que já têm peso para baixa estão na aba Baixas.'; body.append(e); return; }
-  byProd.forEach((items, prod) => {
+  if (!shown.length) { body.append(emptyBox(words.length ? `Nada encontrado para “${folderFilterText.trim()}” em Separar.` : '🎉 Todas as OPs desta pasta já foram pegas. Veja as etapas Pesar e Baixa.')); return; }
+  const groups = new Map();
+  if (folderSort === 'end') {
+    shown.map(it => ({ it, ad: addrList(it)[0] || '' })).sort((a, b) => ptCmp(a.ad, b.ad) || ptCmp(a.it.descricao, b.it.descricao)).forEach(({ it, ad }) => {
+      const k = ruaOf(ad); if (!groups.has(k)) groups.set(k, { title: ruaLabel(k), items: [] }); groups.get(k).items.push(it);
+    });
+  } else {
+    shown.forEach(it => { if (!groups.has(it.produto)) groups.set(it.produto, { title: it.descricao || 'Produto', code: it.produto, items: [] }); groups.get(it.produto).items.push(it); });
+  }
+  groups.forEach(g => {
     const sec = document.createElement('section'); sec.className = 'fp';
     const h = document.createElement('div'); h.className = 'fp-head';
     const t = document.createElement('span');
-    const ds = document.createElement('strong'); ds.textContent = items[0].descricao || 'Produto';
-    const code = document.createElement('b'); code.textContent = prod;
-    t.append(ds, code);
-    const again = document.createElement('button'); again.type = 'button'; again.className = 'icon-btn'; again.textContent = '🔍'; again.title = 'Pesquisar este código de novo'; again.setAttribute('aria-label', `Pesquisar ${prod} de novo`);
-    again.onclick = () => { closeFolders(); rerun(prod); };
-    h.append(t, again); sec.append(h);
+    const ds = document.createElement('strong'); ds.textContent = g.title; t.append(ds);
+    if (g.code) { const code = document.createElement('b'); code.textContent = g.code; t.append(code); }
+    h.append(t);
+    if (g.code) {
+      const again = document.createElement('button'); again.type = 'button'; again.className = 'icon-btn'; again.textContent = '🔍'; again.title = 'Ver o estoque deste código'; again.setAttribute('aria-label', `Ver o estoque de ${g.code}`);
+      again.onclick = () => { closeFolders(); rerun(g.code); };
+      h.append(again);
+    }
+    sec.append(h);
     const list = document.createElement('div'); list.className = 'fp-list';
-    items.forEach(it => list.append(opRow(f, it)));
+    g.items.forEach(it => list.append(opRow(f, it, folderSort === 'end')));
     sec.append(list); body.append(sec);
   });
+}
+function emptyBox(text) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = text; return e; }
+// Etapa 2 · Pesar: uma linha por RG pego que ainda não tem o peso da baixa.
+function renderPesar(f, body) {
+  const words = filterWords();
+  let list = pesarRolls(f).filter(({ it, r }) => matchText(words, [...itemText(it), r.rg]));
+  if (folderSort === 'end') list = [...list].sort((a, b) => ptCmp(a.r.endereco, b.r.endereco) || ptCmp(a.r.rg, b.r.rg));
+  if (!list.length) { body.append(emptyBox(words.length ? `Nada encontrado para “${folderFilterText.trim()}” em Pesar.` : 'Nenhum RG pego aguardando peso. Os que já têm peso estão na etapa Baixa.')); return; }
+  const card = document.createElement('div'); card.className = 'fp-list pw-list';
+  list.forEach(({ it, r }) => {
+    const row = document.createElement('div'); row.className = 'pw-row'; row.tabIndex = 0; row.setAttribute('role', 'button');
+    row.setAttribute('aria-label', `RG ${r.rg}, ${it.descricao || it.produto}. Informar o peso para baixa`);
+    const ok = document.createElement('span'); ok.className = 'fo-box pw-ok'; ok.textContent = '✓';
+    const main = document.createElement('span'); main.className = 'pw-main';
+    const top = document.createElement('span'); top.className = 'bx-top';
+    const rg = document.createElement('b'); rg.className = 'bx-rg'; rg.textContent = r.rg || '—'; top.append(rg);
+    tipoList(r).forEach(t => { const b = document.createElement('span'); b.className = 'bx-tag ' + (t === 'Pilotagem' ? 'pilot' : 'band'); b.textContent = t === 'Pilotagem' ? 'PILOT.' : 'BAND.'; top.append(b); });
+    const ds = document.createElement('small'); ds.textContent = `${it.descricao || 'Produto'} · ${it.produto}`;
+    const meta = document.createElement('span'); meta.className = 'pw-meta';
+    if (r.endereco) { const ad = document.createElement('span'); ad.className = 'fo-ad sm'; ad.textContent = r.endereco; meta.append(ad); }
+    const inf = document.createElement('small'); inf.textContent = [r.peso !== null && r.peso !== undefined ? fmtNum(r.peso, 2) + ' kg em estoque' : '', r.armazem ? 'arm. ' + r.armazem : '', r.pickedBy ? 'pego por ' + r.pickedBy : ''].filter(Boolean).join(' · ');
+    meta.append(inf);
+    main.append(top, ds, meta);
+    const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'pw-btn'; btn.textContent = '⚖ Pesar'; btn.tabIndex = -1;
+    row.append(ok, main, btn);
+    row.onclick = () => openBaixa(f.id, it, r);
+    row.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBaixa(f.id, it, r); } };
+    card.append(row);
+  });
+  body.append(card);
+}
+// Menu ⋯ da pasta
+function renderFolderMenu(f, ativa) {
+  $('folderMenuTitle').textContent = f.name;
+  $('folderMenuMeta').textContent = [f.createdBy ? 'Criada por ' + f.createdBy : '', fmtDay(f.createdAt), isShared() ? 'compartilhada com a equipe' : 'só neste aparelho'].filter(Boolean).join(' · ');
+  const use = $('folderUse');
+  use.querySelector('b').textContent = ativa ? 'Pasta ativa' : 'Usar para salvar';
+  use.querySelector('span').textContent = ativa ? '✓' : '📌';
+  use.disabled = ativa;
+  $('folderAllToggle').setAttribute('aria-checked', String(folderAll));
+  $('folderAllToggle').classList.toggle('on', folderAll);
+}
+function openFolderMenu() { $('folderMenu').classList.remove('hidden'); setTimeout(() => $('folderMenuClose').focus(), 30); }
+function closeFolderMenu() { $('folderMenu').classList.add('hidden'); }
+async function renameFolderAction() {
+  const d = readFolders(), f = folderById(d, folderOpenId); if (!f) return;
+  closeFolderMenu();
+  const name = await askText({ kicker: 'RENOMEAR PASTA', title: `Novo nome para "${f.name}"`, value: f.name, okText: 'Renomear' });
+  if (name === null) return;
+  const nn = String(name).trim().replace(/\s+/g, ' ').slice(0, 40);
+  if (!nn || nn === f.name) return;
+  if (d.folders.some(x => x.id !== f.id && x.name.toLowerCase() === nn.toLowerCase())) return message(`Já existe uma pasta "${nn}".`, 'error');
+  let oldScript = false;
+  const ok = await folderOp(
+    async () => { try { await remote('renameFolder', { folderId: f.id, name: nn }); } catch (e) { if (/desconhecida/i.test(e.message)) { oldScript = true; throw new Error('Para renomear com a planilha da equipe, atualize o PLANILHA_PASTAS_Code.gs no Apps Script (versão nova).'); } throw e; } },
+    () => { const dd = readFolders(), ff = folderById(dd, f.id); if (!ff) return false; ff.name = nn; ff.updatedAt = Date.now(); return writeFolders(dd); });
+  if (ok && !oldScript) { updateFolderUi(); message(`Pasta renomeada para "${nn}".`, 'success'); }
 }
 // Aba "Baixas": só os RGs pegos que têm Peso Total para baixar, em ordem alfabética pelo RG.
 // A caixa marca que a baixa já foi feita no Protheus (fica gravada no aparelho e na planilha da equipe).
@@ -1098,7 +1216,7 @@ function tipoDisable(px, off) { ['Pilot', 'Band', 'Obs'].forEach(id => { $(px + 
 // Código MC de cada produto (regra do app Busca de MC: NCM do cadastro -> MC), para copiar na hora da baixa.
 // Buscado uma vez por produto (o protheus.js guarda no aparelho); as linhas já desenhadas são atualizadas sem redesenhar a lista.
 const mcCodes = new Map();   // produto -> { mc, ncm, motivo }
-const mcPending = new Set(); let mcRetryAt = 0, mcOff = false;
+const mcPending = new Set(); let mcRetryAt = 0, mcOff = false, mcFail = false;
 async function loadMcCodes(prods) {
   if (mcOff || Date.now() < mcRetryAt) return;
   const need = [...new Set(prods)].filter(c => c && !mcCodes.has(c) && !mcPending.has(c));
@@ -1106,8 +1224,9 @@ async function loadMcCodes(prods) {
   need.forEach(c => mcPending.add(c));
   try {
     const r = await api('/api/mc?codes=' + encodeURIComponent(need.join(',')));
-    Object.entries((r && r.items) || {}).forEach(([c, v]) => mcCodes.set(c, v));
+    Object.entries((r && r.items) || {}).forEach(([c, v]) => mcCodes.set(c, v)); mcFail = false;
   } catch (e) {
+    mcFail = true;
     if (e && e.status === 404) mcOff = true;   // NOVA do computador sem essa rota: o botão não aparece
     else mcRetryAt = Date.now() + 60000;        // sem sinal / Protheus lento: tenta de novo daqui a 1 min
   } finally { need.forEach(c => mcPending.delete(c)); }
@@ -1118,6 +1237,7 @@ function paintMcBtn(btn) {
   btn.classList.remove('ok', 'none', 'wait');
   if (mcOff) { btn.hidden = true; return; }
   btn.hidden = false;
+  if (!v && mcFail) { btn.textContent = 'MC ⟳'; btn.classList.add('none'); btn.disabled = false; btn.title = 'Não foi possível buscar o código MC (sem conexão ou fora do Protheus). Toque para tentar de novo.'; btn.setAttribute('aria-label', 'Tentar buscar o código MC de novo'); return; }
   if (!v) { btn.textContent = 'MC …'; btn.classList.add('wait'); btn.disabled = true; btn.title = 'Buscando o código MC no Protheus'; return; }
   btn.disabled = false;
   if (v.mc) { btn.textContent = '⧉ ' + v.mc; btn.title = `Copiar o código MC ${v.mc} (NCM ${v.ncm})`; btn.setAttribute('aria-label', `Copiar o código MC ${v.mc}`); }
@@ -1125,34 +1245,29 @@ function paintMcBtn(btn) {
 }
 async function copyMc(btn) {
   const v = mcCodes.get(btn.dataset.prod);
+  if (!v && mcFail) { mcRetryAt = 0; mcFail = false; document.querySelectorAll('.bx-copymc[data-prod]').forEach(paintMcBtn); return loadMcCodes([...document.querySelectorAll('.bx-copymc[data-prod]')].map(b => b.dataset.prod)); }
   if (!v || !v.mc) { message(v && v.motivo ? `Sem código MC para ${btn.dataset.prod}: ${v.motivo}` : 'Código MC ainda não carregado.', 'error'); return; }
   const ok = await copyText(v.mc);
   if (ok) { btn.textContent = '✓ ' + v.mc; btn.classList.add('ok'); setTimeout(() => paintMcBtn(btn), 1400); message(`Código MC ${v.mc} copiado.`, 'success'); }
   else message('Não foi possível copiar neste navegador.', 'error');
 }
 function renderBaixas(f, body) {
-  const list = baixaRolls(f);
-  if (!list.length) { const e = document.createElement('div'); e.className = 'history-empty'; e.textContent = 'Nenhum RG com Peso Total para baixar. Ao marcar o RG em "A pegar", informe o Peso Total.'; body.append(e); return; }
-  const done = list.filter(x => x.r.baixado).length;
+  const all = baixaRolls(f);
+  if (!all.length) { body.append(emptyBox('Nenhum RG com peso para baixar. Na etapa Pesar, toque em ⚖ Pesar e informe o Peso Total.')); return; }
+  const words = filterWords();
+  const list = all.filter(({ it, r }) => matchText(words, [...itemText(it), r.rg, r.obsBaixa, tipoText(r)]));
+  const done = all.filter(x => x.r.baixado).length;
   const acts = document.createElement('div'); acts.className = 'bx-actions';
-  const info = document.createElement('span'); info.className = 'bx-count'; info.textContent = `${done} de ${list.length} baixa(s) efetuada(s)`;
+  const info = document.createElement('span'); info.className = 'bx-count'; info.textContent = `${done} de ${all.length} baixa(s) efetuada(s)`;
   const pr = document.createElement('button'); pr.type = 'button'; pr.className = 'secondary'; pr.textContent = '🖨 Imprimir'; pr.onclick = () => togglePrintOpts(f, body);
-  const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'secondary'; cp.textContent = '📋 Copiar lista'; cp.onclick = () => copyBaixas(f);
+  const cp = document.createElement('button'); cp.type = 'button'; cp.className = 'secondary'; cp.textContent = '📋 Copiar'; cp.title = 'Copiar a lista de baixas em texto'; cp.onclick = () => copyBaixas(f);
   acts.append(info, pr, cp); body.append(acts);
   if (oldScriptTipo()) { const w = document.createElement('div'); w.className = 'bx-oldscript'; w.setAttribute('role', 'alert'); w.textContent = OLD_SCRIPT_MSG; body.append(w); }
-  const tbl = document.createElement('div'); tbl.className = 'bx-table';
-  const head = document.createElement('div'); head.className = 'bx-row bx-head';
-  ['', 'RG · Produto', 'Armazém', 'Peso (kg)', 'MC', ''].forEach((x, k) => {
-    const c = document.createElement('span'); c.textContent = x;
-    if (!k) c.setAttribute('aria-label', 'Baixa efetuada');
-    if (k === 2) { c.className = 'bx-arm-h'; c.dataset.short = 'Arm.'; c.title = 'Armazém onde o rolo está'; }   // no celular o título vira "Arm."
-    if (k === 5) c.setAttribute('aria-label', 'Copiar RG');
-    head.append(c);
-  });
-  tbl.append(head);
+  if (!list.length) { body.append(emptyBox(`Nada encontrado para “${folderFilterText.trim()}” em Baixa.`)); if (printOptsFor === f.id) buildPrintOpts(f, body); return; }
+  const tbl = document.createElement('div'); tbl.className = 'bx-table bx-cards';
   list.forEach(({ it, r }) => {
-    // linha inteira abre a correção do peso, menos a caixa de "baixa efetuada" e o botão de copiar
-    const row = document.createElement('div'); row.className = 'bx-row bx-item' + (r.baixado ? ' done' : '');
+    // o cartão inteiro abre a correção da baixa, menos a caixa de "baixa efetuada" e os botões de copiar
+    const row = document.createElement('div'); row.className = 'bx-card bx-item' + (r.baixado ? ' done' : '');
     row.tabIndex = 0; row.setAttribute('role', 'button'); row.title = 'Toque para alterar a baixa (peso, MC, tipo e observação)';
     row.setAttribute('aria-label', `RG ${r.rg}, ${it.descricao || 'Produto'}, armazém ${armOf(r)}, ${fmtNum(Number(r.pesoBaixa), 2)} kg${tipoText(r) ? ', ' + tipoText(r) : ''}${obsOf(r) ? ', observação: ' + obsOf(r) : ''}. Alterar a baixa`);
     row.onclick = e => { if (e.target.closest('.bx-check, .bx-copyrg, .bx-copymc')) return; openBaixa(f.id, it, r); };
@@ -1167,43 +1282,47 @@ function renderBaixas(f, body) {
         note: `Ao confirmar, o RG sai da pasta "${f.name}"${isShared() ? ' para todos os usuários' : ''}.`, okText: '✓ Sim, baixa feita', cancelText: 'Ainda não' });
       if (!ok) { inp.checked = false; return; }
       row.classList.add('leaving'); inp.disabled = true;
-      const done = await removeRollFrom(f.id, it.key, r);
-      if (done) message(`Baixa do RG ${r.rg} confirmada. O RG saiu da pasta "${f.name}".`, 'success');
+      const fine = await removeRollFrom(f.id, it.key, r);
+      if (fine) message(`Baixa do RG ${r.rg} confirmada. O RG saiu da pasta "${f.name}".`, 'success');
       else { row.classList.remove('leaving'); inp.disabled = false; inp.checked = false; }
     };
     ck.append(inp);
-    // RG em cima; descrição e código embaixo, no mesmo estilo
     const c1 = document.createElement('span'); c1.className = 'bx-main';
-    // RG com o tipo ao lado; descrição e código numa linha só; observação embaixo (quando houver)
     const top = document.createElement('span'); top.className = 'bx-top';
     const rg = document.createElement('b'); rg.className = 'bx-rg'; rg.textContent = r.rg || '—';
     top.append(rg);
     tipoList(r).forEach(t => { const b = document.createElement('span'); b.className = 'bx-tag ' + (t === 'Pilotagem' ? 'pilot' : 'band'); b.textContent = t === 'Pilotagem' ? 'PILOT.' : 'BAND.'; b.title = t; top.append(b); });
     const dn = document.createElement('small'); dn.className = 'bx-sub'; dn.textContent = `${it.descricao || 'Produto'} · ${it.produto}` + (r.baixado && r.baixadoBy ? ' · baixado por ' + r.baixadoBy : '');
-    // código MC do produto (pelo NCM do cadastro), com botão de copiar, igual ao do RG
+    c1.append(top, dn);
+    if (obsOf(r)) { const o = document.createElement('small'); o.className = 'bx-obs'; o.textContent = obsOf(r); o.title = obsOf(r); c1.append(o); }
+    // armazém, peso e MC em etiquetas
+    const vals = document.createElement('span'); vals.className = 'bx-vals';
+    const val = (label, v, after, cls = '') => { const e = document.createElement('span'); e.className = 'bx-v ' + cls; if (label) e.append(label + ' '); const b = document.createElement('b'); b.textContent = v; e.append(b); if (after) e.append(' ' + after); vals.append(e); return e; };
+    const va = val('Arm.', armOf(r), '', r.armazem ? '' : 'none'); va.title = r.armazem ? `Armazém ${r.armazem}` : 'Armazém não informado (OP salva por uma versão antiga)';
+    val('', fmtNum(Number(r.pesoBaixa), 2), 'kg');
+    const vm = val('MC', hasVal(r.mc) ? String(r.mc) : '—');
+    if (splitOf(r)) { const sp = splitOf(r); vm.title = 'MC: ' + splitText(r); const sm = document.createElement('small'); sm.textContent = ` (P ${fmtNum(sp.pil, 2)} + B ${fmtNum(sp.band, 2)})`; vm.append(sm); }
+    c1.append(vals);
+    // copiar RG e código MC (para colar no Protheus)
+    const cps = document.createElement('span'); cps.className = 'bx-cps';
+    const cpy = document.createElement('button'); cpy.type = 'button'; cpy.className = 'bx-copyrg'; cpy.textContent = '⧉ ' + (r.rg || ''); cpy.title = `Copiar o RG ${r.rg}`; cpy.setAttribute('aria-label', `Copiar o RG ${r.rg}`);
+    cpy.onclick = e => { e.stopPropagation(); copyRg(r.rg, cpy); };
     const mcb = document.createElement('button'); mcb.type = 'button'; mcb.className = 'bx-copymc'; mcb.dataset.prod = String(it.produto || '').trim().toUpperCase();
     mcb.onclick = e => { e.stopPropagation(); copyMc(mcb); };
     paintMcBtn(mcb);
-    c1.append(top, dn, mcb);
-    if (obsOf(r)) { const o = document.createElement('small'); o.className = 'bx-obs'; o.textContent = obsOf(r); o.title = obsOf(r); c1.append(o); }
-    // armazém do rolo (gravado quando a OP foi salva na pasta), antes do peso e do MC
-    const ca = document.createElement('span'); ca.className = 'bx-arm' + (r.armazem ? '' : ' none'); ca.textContent = armOf(r); ca.title = r.armazem ? `Armazém ${r.armazem}` : 'Armazém não informado (OP salva por uma versão antiga)';
-    const c3 = document.createElement('strong'); c3.textContent = fmtNum(Number(r.pesoBaixa), 2);
-    const c4 = document.createElement('strong'); c4.textContent = hasVal(r.mc) ? r.mc : '—';
-    if (splitOf(r)) { const sp = splitOf(r); c4.className = 'bx-peso-split'; c4.title = 'MC: ' + splitText(r); ['P ' + fmtNum(sp.pil, 2), 'B ' + fmtNum(sp.band, 2)].forEach(t => { const sm = document.createElement('small'); sm.textContent = t; c4.append(sm); }); }
-    const cpy = document.createElement('button'); cpy.type = 'button'; cpy.className = 'bx-copyrg'; cpy.textContent = '⧉'; cpy.title = `Copiar o RG ${r.rg}`; cpy.setAttribute('aria-label', `Copiar o RG ${r.rg}`);
-    cpy.onclick = e => { e.stopPropagation(); copyRg(r.rg, cpy); };
-    row.append(ck, c1, ca, c3, c4, cpy);
+    cps.append(cpy, mcb);
+    if (!r.baixado) c1.append(cps);
+    row.append(ck, c1);
     tbl.append(row);
   });
   body.append(tbl);
   if (printOptsFor === f.id) buildPrintOpts(f, body);
-  loadMcCodes(list.map(x => String(x.it.produto || '').trim().toUpperCase()));
+  loadMcCodes(all.map(x => String(x.it.produto || '').trim().toUpperCase()));
 }
 // copia só o RG (para colar no Protheus na hora da baixa)
 async function copyRg(rg, btn) {
   const ok = await copyText(String(rg || ''));
-  if (ok) { btn.textContent = '✓'; btn.classList.add('ok'); setTimeout(() => { btn.textContent = '⧉'; btn.classList.remove('ok'); }, 1400); message(`RG ${rg} copiado.`, 'success'); }
+  if (ok) { const was = btn.textContent; btn.textContent = '✓ Copiado'; btn.classList.add('ok'); setTimeout(() => { btn.textContent = was; btn.classList.remove('ok'); }, 1400); message(`RG ${rg} copiado.`, 'success'); }
   else message('Não foi possível copiar neste navegador.', 'error');
 }
 async function copyText(t) {
@@ -1325,7 +1444,7 @@ function enderecosDe(it) {
   const ordem = String(it.enderecos || '').split(' - ');
   return [...m.values()].sort((a, b) => b.rolos.length - a.rolos.length || ordem.indexOf(a.ad) - ordem.indexOf(b.ad));
 }
-function opRow(f, it) {
+function opRow(f, it, byAddr = false) {
   const picked = opPicked(it), open = folderOpenOps.has(it.key), bad = /^DEFEITO/.test(it.status || '');
   const need = Math.min(pilNeed(it), it.rolos.length), falta = picked.length < need;   // falta escolher RG (pilotagem com vários pedidos)
   const wrap = document.createElement('div'); wrap.className = 'fo' + (picked.length && !falta ? ' done' : '') + (open ? ' open' : '') + (bad ? ' bad' : '');
@@ -1335,15 +1454,20 @@ function opRow(f, it) {
   const main = document.createElement('span'); main.className = 'fo-main';
   // item enviado pelo app de Pedidos: um por produto (PIL|...) ou do modelo antigo (PV ...): mostra os pedidos no lugar da OP
   const pil = isPilItem(it), pv = pil || /^PV /.test(it.status || '');
-  const op = document.createElement('b'); op.textContent = pil ? pilStatusBase(it) : pv ? it.status : `OP ${it.op || '—'} · ${it.partida || '—'}`;
+  // endereços em destaque (é o que o separador procura); produto/OP embaixo
+  const ads = pil ? enderecosDe(it).map(e => e.ad).filter(x => x !== 'sem endereço') : addrList(it);
+  const chips = document.createElement('span'); chips.className = 'fo-ads';
+  ads.slice(0, 6).forEach(x => { const c = document.createElement('span'); c.className = 'fo-ad'; c.textContent = x; chips.append(c); });
+  if (ads.length > 6) { const c = document.createElement('span'); c.className = 'fo-ad more'; c.textContent = `+${ads.length - 6}`; chips.append(c); }
+  if (!ads.length) { const c = document.createElement('span'); c.className = 'fo-ad none'; c.textContent = 'sem endereço'; chips.append(c); }
+  const opTxt = pil ? pilStatusBase(it) : pv ? it.status : `OP ${it.op || '—'} · ${it.partida || '—'}`;
   const ad = document.createElement('small');
-  ad.textContent = pil && falta ? enderecosDe(it).map(e => `${e.ad} (${e.rolos.length} RG${e.rolos.length === 1 ? '' : 's'})`).join(' · ')
-    : (bad ? '✕ ' + it.status.replace(/^DEFEITO:\s*/, '') + ' · ' : '') + (it.enderecos ? it.enderecos.split(' - ').join(' · ') : 'sem endereço');
-  main.append(op, ad);
+  ad.textContent = (bad ? '✕ ' + it.status.replace(/^DEFEITO:\s*/, '') + ' · ' : '') + (byAddr ? `${it.descricao || it.produto} · ${opTxt}` : opTxt);
+  main.append(chips, ad);
   if (pil && pilNotFound(it).length) { const nf = document.createElement('small'); nf.className = 'fo-nf'; nf.textContent = `✕ Não encontrado: ${pilNotFound(it).join(', ')}`; main.append(nf); }
   const side = document.createElement('span'); side.className = 'fo-side';
-  const baixaKg = picked.reduce((t, r) => t + (Number(r.pesoBaixa) || 0), 0);
-  side.textContent = picked.length && !(pil && falta && folderShow !== 'done') ? sortRolos(picked).map(r => r.rg).join(', ') + (baixaKg ? ` · ${fmtNum(baixaKg, 2)} kg` : '') : pil ? (need > 1 ? `${picked.length} de ${need} RGs · ` : '') + `${enderecosDe(it).length} endereço${enderecosDe(it).length === 1 ? '' : 's'}` : `${it.rolos.length} rolo${it.rolos.length === 1 ? '' : 's'}`;
+  if (picked.length && !(pil && falta)) side.textContent = sortRolos(picked).map(r => r.rg).join(', ');
+  else { const n = pil && need > 1 ? `${picked.length}/${need}` : String(pil ? enderecosDe(it).length : it.rolos.length); const bb = document.createElement('b'); bb.textContent = n; side.append(bb, document.createTextNode(pil && need > 1 ? 'RGs' : pil ? (enderecosDe(it).length === 1 ? 'endereço' : 'endereços') : (it.rolos.length === 1 ? 'rolo' : 'rolos'))); }
   const chev = document.createElement('span'); chev.className = 'fo-chev'; chev.textContent = '›';
   row.append(box, main, side, chev);
   const pegaMode = folderShow === 'done' && picked.length;
@@ -1355,7 +1479,7 @@ function opRow(f, it) {
   wrap.append(row);
   if (open && !pegaMode) {
     const panel = document.createElement('div'); panel.className = 'fo-panel';
-    const hint = document.createElement('p'); hint.className = 'fo-hint'; hint.textContent = 'Toque no RG que você pegou e informe o Peso Total e o MC da baixa:';
+    const hint = document.createElement('p'); hint.className = 'fo-hint'; hint.textContent = 'Qual RG você pegou?';
     const grid = document.createElement('div'); grid.className = 'rg-grid';
     const shown = picked.length ? sortRolos(picked) : sortRolos(it.rolos);   // depois de identificar o RG, fica só ele
     if (picked.length) hint.textContent = picked.some(r => hasVal(r.pesoBaixa)) ? 'RG coletado (toque para corrigir a baixa):' : 'RG coletado. Toque nele para informar o peso da baixa:';
@@ -1363,8 +1487,9 @@ function opRow(f, it) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'rg-chip' + (r.picked ? ' on' : '');
       b.setAttribute('aria-pressed', String(!!r.picked));
       const a = document.createElement('b'); a.textContent = (r.picked ? '✓ ' : '') + (r.rg || '—');
-      const m = document.createElement('small'); m.textContent = [r.endereco, r.peso !== null && r.peso !== undefined ? fmtNum(r.peso, 2) + ' kg' : ''].filter(Boolean).join(' · ') + (r.picked && r.pickedBy ? ' · ' + r.pickedBy : '');
-      b.append(a, m);
+      const e = document.createElement('span'); e.className = 'rg-ad'; e.textContent = r.endereco || 'sem endereço';
+      const m = document.createElement('small'); m.textContent = [r.peso !== null && r.peso !== undefined ? fmtNum(r.peso, 2) + ' kg' : '', r.armazem ? 'arm. ' + r.armazem : ''].filter(Boolean).join(' · ') + (r.picked && r.pickedBy ? ' · ' + r.pickedBy : '');
+      b.append(a, e, m);
       if (r.picked) {
         const bx = document.createElement('span'); bx.className = 'rg-baixa';
         const hasPeso = r.pesoBaixa !== null && r.pesoBaixa !== undefined && r.pesoBaixa !== '';
@@ -1395,11 +1520,13 @@ function opRow(f, it) {
       });
     } else shown.forEach(r => grid.append(rgChip(r)));
     const foot = document.createElement('div'); foot.className = 'fo-foot';
-    const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'btn-soft tone-bad'; rm.textContent = 'Tirar da pasta';
+    const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'fo-link bad'; rm.textContent = 'Tirar da pasta';
     rm.onclick = async () => { if (!(await askOk({ tone: 'danger', kicker: 'TIRAR DA PASTA', title: pv ? `Tirar ${it.descricao || it.produto} da pasta "${f.name}"?` : `Tirar a OP ${it.op} da pasta "${f.name}"?`, card: { label: 'PRODUTO', title: it.descricao || it.produto, lines: [['Código', it.produto], ['RGs', String(it.rolos.length)]] }, okText: 'Tirar da pasta' }))) return; folderOpenOps.delete(it.key); await removeItemFrom(f.id, it.key); updateSaveBtn(); };
-    const close = document.createElement('button'); close.type = 'button'; close.className = 'btn-soft'; close.textContent = 'Fechar';
+    const see = document.createElement('button'); see.type = 'button'; see.className = 'fo-link'; see.textContent = '🔍 Ver estoque do código';
+    see.onclick = () => { closeFolders(); rerun(it.produto); };
+    const close = document.createElement('button'); close.type = 'button'; close.className = 'fo-link'; close.textContent = 'Fechar';
     close.onclick = () => { folderOpenOps.delete(it.key); renderFolder(); };
-    foot.append(rm, close);
+    foot.append(rm, see, close);
     panel.append(hint, grid, foot); wrap.append(panel);
   }
   return wrap;
@@ -2415,7 +2542,7 @@ $('closeFolders').onclick = $('closeFolders2').onclick = $('foldersClose2').oncl
 $('folderBack').onclick = openFolders;
 $('folderSearch').onclick = () => { closeFolders(); goSearch(); };
 document.querySelectorAll('#searchView .center-card, #foldersList').forEach(el => { const v = document.createElement('p'); v.className = 'app-version'; v.textContent = `NOVA · versão ${NOVA_VERSION}`; el.append(v); });
-$('folderClear').onclick = openClearBox;
+$('folderClear').onclick = () => { closeFolderMenu(); openClearBox(); };
 $('baixaForm').onsubmit = saveBaixa;
 ['input', 'keyup', 'change', 'blur', 'compositionend'].forEach(ev => { $('baixaPeso').addEventListener(ev, onPesoInput); $('baixaMc').addEventListener(ev, onPesoInput); });
 $('closeBaixa').onclick = $('baixaCancel').onclick = $('baixaCancel1').onclick = closeBaixa;
@@ -2446,11 +2573,21 @@ $('navTheme').onclick = () => setTheme(document.documentElement.dataset.theme ==
 $('folderClearCancel').onclick = closeClearBox;
 $('folderClearDone').onclick = () => clearFolderAction(true);
 $('folderClearAll').onclick = () => clearFolderAction(false);
-$('folderExport').onclick = exportFolder;
-$('folderUse').onclick = () => { const d = readFolders(); d.active = folderOpenId; writeFolders(d); updateFolderUi(); renderFolder(); message('Pasta ativa: as próximas OPs salvas vão para ela.', 'success'); };
-$('folderDelete').onclick = deleteFolderAction;
+$('folderExport').onclick = () => { closeFolderMenu(); exportFolder(); };
+$('folderUse').onclick = () => { closeFolderMenu(); const d = readFolders(); d.active = folderOpenId; writeFolders(d); updateFolderUi(); renderFolder(); message('Pasta ativa: as próximas OPs salvas vão para ela.', 'success'); };
+$('folderDelete').onclick = () => { closeFolderMenu(); deleteFolderAction(); };
+$('folderRename').onclick = renameFolderAction;
+$('folderMenuBtn').onclick = openFolderMenu;
+$('folderMenuClose').onclick = closeFolderMenu;
+$('folderMenu').addEventListener('mousedown', e => { if (e.target === $('folderMenu')) closeFolderMenu(); });
+$('folderMenu').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); closeFolderMenu(); } });
+$('folderAllToggle').onclick = () => { folderAll = !folderAll; renderFolder(); };
+// filtro da pasta: vale nas 3 etapas; ordem (produto / endereço) fica guardada no aparelho
+$('folderFilter').oninput = () => { folderFilterText = $('folderFilter').value; renderFolder(); };
+$('folderFilterClear').onclick = () => { $('folderFilter').value = ''; folderFilterText = ''; renderFolder(); $('folderFilter').focus(); };
+document.querySelectorAll('#folderSort button').forEach(b => { b.onclick = () => { folderSort = b.dataset.sort; lsSet(SORT_KEY, folderSort); renderFolder(); }; });
 // trocar de aba fecha o que estava aberto (um item aberto em "A pegar" não pode ficar preso em "Pegas") e volta ao topo
-document.querySelectorAll('#folderView .folder-tools .seg button').forEach(b => { b.onclick = () => { if (folderShow !== b.dataset.show) resetFolderOpen(); folderShow = b.dataset.show; printOptsFor = null; renderFolder(); $('folderBody').scrollTop = 0; }; });
+document.querySelectorAll('#folderView .fv-step').forEach(b => { b.onclick = () => { if (folderShow !== b.dataset.show) resetFolderOpen(); folderShow = b.dataset.show; printOptsFor = null; renderFolder(); $('folderBody').scrollTop = 0; }; });
 $('foldersImport').onclick = () => $('foldersFile').click();
 $('foldersFile').onchange = async () => { const f = $('foldersFile').files[0]; $('foldersFile').value = ''; if (!f) return; try { const r = await importFolders(await f.text()); renderFoldersList(); updateFolderUi(); message(`Planilha importada: ${r.nRolls} rolo(s)${r.nFolders ? `, ${r.nFolders} pasta(s) nova(s)` : ''}.`, 'success'); } catch (e) { message(e.message, 'error'); } };
 $('foldersModal').addEventListener('mousedown', e => { if (e.target === $('foldersModal')) closeFolders(); });

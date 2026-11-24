@@ -57,6 +57,7 @@ function handle_(b) {
       }
       if (a === 'createFolder') extra.folder = createFolder_(b.name, user);
       else if (a === 'deleteFolder') deleteFolder_(b.folderId);
+      else if (a === 'renameFolder') renameFolder_(b.folderId, b.name);
       else if (a === 'saveItem') saveItem_(b.folderId, b.item, user);
       else if (a === 'removeItem') removeItem_(b.folderId, b.itemKey);
       else if (a === 'clearItems') clearItems_(b.folderId, !!b.onlyPicked);
@@ -145,6 +146,17 @@ function createFolder_(name, user) {
 function deleteFolder_(id) {
   const sp = sheet_(SH_P, HP); rewrite_(sp, HP.length, rows_(sp, HP.length).filter(x => x[0] !== id));
   const sr = sheet_(SH_R, HR); rewrite_(sr, HR.length, rows_(sr, HR.length).filter(x => x[C.pasta_id] !== id));
+}
+// renomeia a pasta (aba Pastas) e o nome gravado nas linhas da aba Rolos
+function renameFolder_(id, name) {
+  name = s_(name).trim().replace(/\s+/g, ' ').slice(0, 40);
+  if (!name) throw new Error('Dê um nome para a pasta.');
+  const sp = sheet_(SH_P, HP), p = rows_(sp, HP.length);
+  if (!p.some(x => x[0] === id)) throw new Error('Pasta não encontrada (pode ter sido excluída por outro usuário).');
+  if (p.some(x => x[0] !== id && x[1].toLowerCase() === name.toLowerCase())) throw new Error('Já existe uma pasta "' + name + '".');
+  rewrite_(sp, HP.length, p.map(x => x[0] === id ? [x[0], name, x[2], x[3]] : x));
+  const sr = sheet_(SH_R, HR), r = rows_(sr, HR.length);
+  if (r.some(x => x[C.pasta_id] === id)) rewrite_(sr, HR.length, r.map(x => { if (x[C.pasta_id] === id) x[C.pasta] = name; return x; }));
 }
 function folderName_(id) {
   const f = rows_(sheet_(SH_P, HP), HP.length).find(x => x[0] === id);
