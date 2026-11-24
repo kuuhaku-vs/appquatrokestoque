@@ -276,6 +276,42 @@ async function suggestProducts(text) {
   return out;
 }
 
+// Código MC do produto (mesma regra do app Busca de MC): Pos.IPI/NCM do cadastro SB1 (B1_POSIPI) -> MC.
+// Os produtos da aba Baixas vão numa consulta só (B1_COD IN ...); o resultado fica guardado no aparelho por 7 dias.
+const MAPA_NCM_MC = {
+  '60062100': 'MC00001113', '60062400': 'MC00001114', '60062200': 'MC00001115',
+  '60064100': 'MC00001116', '60064400': 'MC00001117', '60064200': 'MC00001118',
+  '60063110': 'MC00001119', '60063120': 'MC00001119',
+  '60063410': 'MC00001120', '60063420': 'MC00001120',
+  '60063210': 'MC00001121', '60063220': 'MC00001121',
+  '60069000': 'MC00001122', '60069001': 'MC00001122'
+};
+const MC_KEY = 'nova_mc_codes_v1', MC_TTL_MS = 7 * 24 * 60 * 60 * 1000, MC_BATCH = 40;
+function mcFromNcm(ncmRaw) {
+  const ncm = String(ncmRaw ?? '').trim().replace(/[.\s-]/g, '');
+  if (!ncm) return { mc: '', ncm, motivo: 'Produto sem Pos.IPI/NCM no cadastro.' };
+  const mc = MAPA_NCM_MC[ncm];
+  return mc ? { mc, ncm } : { mc: '', ncm, motivo: `NCM ${ncm} sem regra de MC.` };
+}
+async function lookupMcCodes(list) {
+  const cache = LS.get(MC_KEY, {}) || {}, now = Date.now(), out = {};
+  const codes = [...new Set(String(list || '').split(',').map(c => safeCode(c).replace(/[^A-Z0-9]/g, '')).filter(c => c.length >= 2 && c.length <= 40))].slice(0, 300);
+  const missing = [];
+  codes.forEach(c => { const v = cache[c]; if (v && now - v.at < MC_TTL_MS) out[c] = v; else missing.push(c); });
+  for (let i = 0; i < missing.length; i += MC_BATCH) {
+    const part = missing.slice(i, i + MC_BATCH);
+    const r = await fetchAll({ tables: 'SB1', fields: 'B1_COD,B1_POSIPI', where: `B1_COD IN (${part.map(c => `'${c}'`).join(',')})` }, { maxPages: 1, pageSize: Math.max(part.length * 2, 10), timeoutMs: 20000 });
+    const found = new Map();   // o mesmo código pode vir em mais de uma filial: fica o que tiver NCM
+    r.rows.forEach(row => { const c = String(field(row, 'B1_COD') ?? '').trim().toUpperCase(), n = String(field(row, 'B1_POSIPI') ?? '').trim(); if (!found.get(c)) found.set(c, n); });
+    part.forEach(c => { out[c] = cache[c] = { ...(found.has(c) ? mcFromNcm(found.get(c)) : { mc: '', ncm: '', motivo: 'Produto não encontrado no cadastro (SB1).' }), at: now }; });
+  }
+  if (missing.length) {
+    for (const [k, v] of Object.entries(cache)) if (now - v.at >= MC_TTL_MS) delete cache[k];
+    LS.set(MC_KEY, cache);
+  }
+  return { items: out };
+}
+
 // Pesquisa em etapas. A base (só SZ5) é a fonte confiável; SZ6/SZL só enriquecem se baterem 1:1.
 async function searchStock(code) {
   const plain = code.replace(/''/g, "'");
@@ -522,6 +558,7 @@ async function handle(path, options = {}) {
     return { groups, withGramatura: groups.filter(g => g.gramatura).length, cached: r.cached, truncated: !!r.truncated, loadedAt: r.at };
   }
   if (p.endsWith('/api/rg')) { need(); const g = k => url.searchParams.get(k) || ''; return findRoll({ rg: g('rg'), serie: g('serie'), numero: g('numero'), prods: g('prods') }); }
+  if (p.endsWith('/api/mc')) { need(); return lookupMcCodes(url.searchParams.get('codes')); }
   if (p.endsWith('/api/suggest')) { need(); return suggestProducts(url.searchParams.get('q')); }
   if (p.endsWith('/api/stock') || p.endsWith('/api/products')) {
     need();
