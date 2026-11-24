@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const NOVA_VERSION = '24/11 17:00';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
+const NOVA_VERSION = '24/11 17:20';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -1028,6 +1028,7 @@ function renderFolder() {
   $('folderFilterClear').classList.toggle('hidden', !folderFilterText);
   const body = $('folderBody'); body.replaceChildren();
   body.classList.toggle('baixas-mode', folderShow === 'baixas');
+  body.classList.toggle('sep-mode', folderShow === 'todo');   // no computador, Separar usa 2 colunas
   if (!f.items.length) { body.append(emptyBox('Pasta vazia. Toque em ＋ Código, pesquise, abra a OP e use 💾 Salvar.')); return; }
   if (folderShow === 'baixas') return renderBaixas(f, body);
   if (folderShow === 'done') return renderPesar(f, body);
