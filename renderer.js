@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const NOVA_VERSION = '24/11 17:20';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
+const NOVA_VERSION = '24/11 17:30';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -1266,6 +1266,10 @@ function renderBaixas(f, body) {
   if (oldScriptTipo()) { const w = document.createElement('div'); w.className = 'bx-oldscript'; w.setAttribute('role', 'alert'); w.textContent = OLD_SCRIPT_MSG; body.append(w); }
   if (!list.length) { body.append(emptyBox(`Nada encontrado para “${folderFilterText.trim()}” em Baixa.`)); if (printOptsFor === f.id) buildPrintOpts(f, body); return; }
   const tbl = document.createElement('div'); tbl.className = 'bx-table bx-cards';
+  // cabeçalho da tabela (só aparece no computador; no celular ficam os cartões)
+  const hd = document.createElement('div'); hd.className = 'bx-card bx-thead'; hd.setAttribute('aria-hidden', 'true');
+  ['', 'RG · Produto', 'Arm.', 'Peso (kg)', 'MC', 'Copiar para o Protheus'].forEach((t, k) => { const c = document.createElement('span'); c.textContent = t; c.className = 'bx-th' + k; hd.append(c); });
+  tbl.append(hd);
   list.forEach(({ it, r }) => {
     // o cartão inteiro abre a correção da baixa, menos a caixa de "baixa efetuada" e os botões de copiar
     const row = document.createElement('div'); row.className = 'bx-card bx-item' + (r.baixado ? ' done' : '');
@@ -1298,12 +1302,11 @@ function renderBaixas(f, body) {
     if (obsOf(r)) { const o = document.createElement('small'); o.className = 'bx-obs'; o.textContent = obsOf(r); o.title = obsOf(r); c1.append(o); }
     // armazém, peso e MC em etiquetas
     const vals = document.createElement('span'); vals.className = 'bx-vals';
-    const val = (label, v, after, cls = '') => { const e = document.createElement('span'); e.className = 'bx-v ' + cls; if (label) e.append(label + ' '); const b = document.createElement('b'); b.textContent = v; e.append(b); if (after) e.append(' ' + after); vals.append(e); return e; };
+    const val = (label, v, after, cls = '') => { const e = document.createElement('span'); e.className = 'bx-v ' + cls; if (label) { const l = document.createElement('span'); l.className = 'bx-l'; l.textContent = label + ' '; e.append(l); } const b = document.createElement('b'); b.textContent = v; e.append(b); if (after) { const a = document.createElement('span'); a.className = 'bx-l'; a.textContent = ' ' + after; e.append(a); } vals.append(e); return e; };
     const va = val('Arm.', armOf(r), '', r.armazem ? '' : 'none'); va.title = r.armazem ? `Armazém ${r.armazem}` : 'Armazém não informado (OP salva por uma versão antiga)';
     val('', fmtNum(Number(r.pesoBaixa), 2), 'kg');
     const vm = val('MC', hasVal(r.mc) ? String(r.mc) : '—');
     if (splitOf(r)) { const sp = splitOf(r); vm.title = 'MC: ' + splitText(r); const sm = document.createElement('small'); sm.textContent = ` (P ${fmtNum(sp.pil, 2)} + B ${fmtNum(sp.band, 2)})`; vm.append(sm); }
-    c1.append(vals);
     // copiar RG e código MC (para colar no Protheus)
     const cps = document.createElement('span'); cps.className = 'bx-cps';
     const cpy = document.createElement('button'); cpy.type = 'button'; cpy.className = 'bx-copyrg'; cpy.textContent = '⧉ ' + (r.rg || ''); cpy.title = `Copiar o RG ${r.rg}`; cpy.setAttribute('aria-label', `Copiar o RG ${r.rg}`);
@@ -1312,8 +1315,9 @@ function renderBaixas(f, body) {
     mcb.onclick = e => { e.stopPropagation(); copyMc(mcb); };
     paintMcBtn(mcb);
     cps.append(cpy, mcb);
-    if (!r.baixado) c1.append(cps);
-    row.append(ck, c1);
+    if (r.baixado) cps.classList.add('off');
+    // no celular: valores e botões embaixo do produto (cartão); no computador: colunas da tabela
+    row.append(ck, c1, vals, cps);
     tbl.append(row);
   });
   body.append(tbl);

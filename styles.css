@@ -1401,3 +1401,30 @@ th.num-cell,td.num-cell{text-align:right}
   .folders-modal{height:calc(100vh - 24px)}
   #folderView .fv-sub{display:none}
 }
+
+/* ---- Baixa: celular = cartões (valores e botões embaixo); computador = tabela, uma linha por RG ---- */
+.bx-card{display:grid;grid-template-columns:24px minmax(0,1fr);column-gap:12px;row-gap:4px;align-items:start}
+.bx-card>.bx-vals,.bx-card>.bx-cps{grid-column:2}
+.bx-card>.bx-cps.off{display:none}
+.bx-thead{display:none}
+@media(min-width:900px){
+  .bx-card{grid-template-columns:24px minmax(0,1fr) 62px 86px 104px 268px;column-gap:14px;align-items:center;padding:10px 14px}
+  .bx-card>.bx-vals{grid-column:3/6;display:grid;grid-template-columns:62px 86px 104px;column-gap:14px;margin:0}
+  .bx-card>.bx-cps{grid-column:6;margin:0;justify-content:flex-end;flex-wrap:nowrap}
+  .bx-card>.bx-cps.off{display:flex;visibility:hidden}
+  .bx-card .bx-check{padding:0;align-self:center}
+  .bx-card .bx-rg{font-size:15px}
+  .bx-card .bx-main{gap:2px}
+  .bx-v{background:none;padding:0;text-align:right;font-size:14px}
+  .bx-v .bx-l{display:none}
+  .bx-v b{font-size:14.5px;font-variant-numeric:tabular-nums}
+  .bx-vals>.bx-v:first-child{text-align:center}
+  .bx-vals>.bx-v:first-child b{display:inline-block;min-width:34px;padding:3px 8px;border-radius:7px;background:var(--accent-soft);border:1px solid var(--accent-line);color:var(--accent);font-size:13px}
+  .bx-vals>.bx-v.none:first-child b{background:transparent;border-color:var(--line);color:var(--muted)}
+  .bx-v small{display:block;font-size:10.5px}
+  .bx-card .bx-copyrg,.bx-card .bx-copymc{height:32px;font-size:12px;padding:0 10px}
+  .bx-thead{display:grid;padding:8px 14px;background:var(--surface-2);cursor:default;font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .bx-thead:hover{background:var(--surface-2)}
+  .bx-th2{text-align:center}.bx-th3,.bx-th4{text-align:right}.bx-th5{text-align:right}
+  .bx-card.done .bx-vals>.bx-v:first-child b{background:transparent;border-color:var(--ok-line);color:var(--ok)}
+}
