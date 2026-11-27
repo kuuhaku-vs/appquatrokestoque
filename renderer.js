@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const NOVA_VERSION = '27/11 17:45';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
+const NOVA_VERSION = '27/11 18:15';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -426,7 +426,8 @@ function updateCodeInput() {
   el.classList.toggle('is-name', !codeLike);
   $('codeCount').textContent = codeLike ? `${v.length}/${CODE_LEN}` : 'nome';
   $('codeCount').classList.toggle('done', codeLike && v.length === CODE_LEN);
-  $('codeBtn').disabled = queryLen(v) < SUGGEST_MIN;
+  $('codeBtn').disabled = v.length > 0 && queryLen(v) < SUGGEST_MIN;
+  if (!searching) $('codeBtn').textContent = v.length ? 'Pesquisar' : `Buscar tudo no armazém ${whLabel()}`;
 }
 const HISTORY_KEY = 'nova_history_v1', HISTORY_MAX = 50;
 function getHistory() {
@@ -654,6 +655,7 @@ const whParam = () => whSelected().join(',');
 const whLabel = (l = whSelected()) => l.join('/');
 function renderWh() {
   const st = whState();
+  setTimeout(() => { try { updateCodeInput(); } catch { /* tela ainda carregando */ } }, 0);
   ['whBox', 'whBox2', 'whBox3'].forEach(id => {
     const box = $(id); if (!box) return;
     box.replaceChildren();
@@ -701,7 +703,8 @@ async function removeWh(w) {
 function onWhChange() {
   if (document.body.dataset.view !== 'results' || !selected || !selected.code) return;
   const missing = whSelected().filter(w => !(loadedWh || []).includes(w));
-  if (missing.length && !punhoCtx) search(selected.code, 'results');
+  if (missing.length && selected.multi) searchWarehouse('results');
+  else if (missing.length && !punhoCtx) search(selected.code, 'results');
   else applyFilters();
 }
 const pastasUrl = () => String((window.NOVA_CONFIG && window.NOVA_CONFIG.pastasUrl) || lsGet(PURL_KEY, '') || '').trim();
@@ -794,7 +797,7 @@ function snapshotGroup(g) {
   const prod = String(field(g.rows[0], 'Z5_PROD') || selected?.code || '').trim().toUpperCase();
   const addrs = [...new Set(g.rows.map(addrOf).filter(Boolean))];
   return {
-    key: itemKey(prod, g.op, g.partida), produto: prod, descricao: selected?.description || groupLabel(g.rows[0]),
+    key: itemKey(prod, g.op, g.partida), produto: prod, descricao: (selected?.multi ? String(field(g.rows[0], 'B1_DESC') || '').trim() : selected?.description) || groupLabel(g.rows[0]),
     op: g.op, partida: g.partida, enderecos: addrs.join(' - '), savedAt: Date.now(),
     status: (() => { const d = defectFor(g.rows[0]); return d ? 'DEFEITO: ' + defectText(d) : opMatch(g.rows[0]) ? 'INDICADO POR OP' : g.rows.some(priorityMatch) ? 'APROVADO P/ AMOSTRA' : 'NÃO INDICADO'; })(),
     rolos: g.rows.map(r => ({ rg: rgOf(r), endereco: addrOf(r), armazem: String(field(r, 'Z5_ALMOXA') ?? '').trim(), peso: numericValue(field(r, 'Z5_PESOATU')), gramatura: gramaturaValue(r), cmc: numericValue(field(r, 'Z5_CMC')), picked: false }))
@@ -1919,7 +1922,7 @@ function punhoCodeOf(code) {
 }
 function opMatch(r) { return !!punhoCtx && punhoCtx.ops.has(opOf(r)); }
 function updatePunhoUi() {
-  const inPunho = !!punhoCtx, code = !inPunho && selected ? punhoCodeOf(selected.code) : null;
+  const inPunho = !!punhoCtx, code = !inPunho && selected && !selected.multi ? punhoCodeOf(selected.code) : null;
   const btn = $('punhoBtn');
   btn.classList.toggle('hidden', inPunho);
   btn.disabled = !code; btn.classList.toggle('active', punhoSelecting);
@@ -2015,6 +2018,53 @@ function rankRows(rows) {
 /* ------------------------------ pesquisa ------------------------------ */
 let searching = false;
 // from: 'search' (tela central) ou 'results' (barra do topo da tela de endereços)
+// Busca só pelo armazém: todos os rolos com peso nos armazéns marcados, de todos os produtos.
+async function searchWarehouse(from = 'search') {
+  if (searching) return;
+  clearMessage();
+  if (!connected) return goLogin('Entre no Protheus antes de pesquisar.');
+  closeSuggests();
+  const whs = whSelected();
+  const btn = from === 'results' ? $('searchBtn') : $('codeBtn');
+  const label = btn.innerHTML;
+  searching = true; btn.disabled = true; $('codeInput').disabled = true; $('term').disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Buscando armazém ${whLabel(whs)}…`;
+  const card = $('codeForm'), useFx = from === 'search' && fxOn(card);
+  const useBusy = from === 'results' && !REDUCED_MOTION;
+  if (useBusy) resultsBusy(true);
+  const closing = useFx ? novaClose(card, { loading: true }) : useBusy ? wait(700) : Promise.resolve();
+  let found = false;
+  try {
+    const [d] = await Promise.all([
+      api(`/api/warehouse?wh=${encodeURIComponent(whs.join(','))}`, {}, SEARCH_TIMEOUT_MS),
+      loadPriority().catch(() => {}),
+      loadDefects().catch(() => {})
+    ]);
+    const rows = Array.isArray(d.rows) ? d.rows : [];
+    await closing;
+    if (!rows.length) { message(`Nenhum rolo com peso nos armazéns ${whLabel(whs)}.`, 'error'); return; }
+    resetPunho();
+    found = true;
+    showView('results'); $('term').value = '';
+    loadedWh = Array.isArray(d.warehouses) && d.warehouses.length ? d.warehouses : whs;
+    const n = Number(d.products) || new Set(rows.map(r => String(field(r, 'Z5_PROD') ?? '').trim())).size;
+    stock({ code: `Armazém ${whLabel(loadedWh)}`, description: `todos os produtos (${n.toLocaleString('pt-BR')})`, multi: true }, rows);
+    if (useFx) { novaReset(card); popIn($('stockSection')); }
+    if (useBusy) { resultsBusy(false); popIn($('stockSection')); }
+    if (d.truncated) message('Atenção: o armazém tem muitos rolos e a consulta atingiu o limite de páginas/tempo; a lista pode estar incompleta. Marque um armazém só ou pesquise por código.', 'error');
+  } catch (e) {
+    await closing;
+    if (e.status === 401 || e.status === 403) { novaReset(card); requireLogin(); return; }
+    message(e.status === 404 ? 'Esta versão do NOVA (computador) ainda não tem a busca por armazém.' : (e.message || 'Falha ao consultar o armazém no Protheus.'), 'error');
+  } finally {
+    if (useBusy) resultsBusy(false);
+    if (useFx && !found && document.body.dataset.view === 'search') await novaOpen(card);
+    else if (useFx && !found) novaReset(card);
+    searching = false; btn.innerHTML = label;
+    $('codeInput').disabled = false; $('term').disabled = false; $('searchBtn').disabled = false;
+    updateCodeInput();
+  }
+}
 async function search(codeArg, from = 'search') {
   if (searching) return;
   clearMessage();
@@ -2087,6 +2137,7 @@ function submitSearch(from) {
   const el = from === 'results' ? $('term') : $('codeInput'), sg = suggesters[from];
   const code = asCode(el.value);
   if (code) return search(code, from);
+  if (!cleanQuery(el.value).trim()) return searchWarehouse(from);   // campo vazio: tudo do(s) armazém(ns) marcado(s)
   const q = cleanQuery(el.value).trim();
   if (queryLen(q) < SUGGEST_MIN) return message(`Digite o código com ${CODE_LEN} caracteres ou pelo menos ${SUGGEST_MIN} letras do nome do artigo.`, 'error');
   if (!connected) return goLogin('Entre no Protheus antes de pesquisar.');
@@ -2260,7 +2311,7 @@ function fillAddressFilter() {
 function updateFilterHint() {
   const hints = {
     Z5_ENDEREC: ['Endereço', 'Digite o endereço...'], RG: ['RG', 'Digite o número do RG...'], Z5_OP: ['OP', 'Digite o número da OP...'],
-    Z5_PARTIDA: ['Partida', 'Digite o número da partida...'], Z5_ALMOXA: ['Armazém', 'Digite o número do armazém...'], Z6_GRUPO: ['Grupo de produto', 'Digite o código do grupo…'], Z5_TONALID: ['Tonalidade', 'Digite a tonalidade…']
+    Z5_PARTIDA: ['Partida', 'Digite o número da partida...'], Z5_ALMOXA: ['Armazém', 'Digite o número do armazém...'], Z6_GRUPO: ['Grupo de produto', 'Digite o código do grupo…'], Z5_PROD: ['Produto', 'Digite o código do produto…'], Z5_TONALID: ['Tonalidade', 'Digite a tonalidade…']
   };
   const hint = hints[$('filterType').value] || ['Valor do filtro', 'Digite para filtrar…'];
   $('filterValueLabel').textContent = hint[0]; $('filterValue').placeholder = hint[1];
@@ -2352,7 +2403,8 @@ function toggleDetail(tr, r, btn) {
 }
 // ---------- agrupamento por OP + Partida ----------
 const opOf = r => String(field(r, 'Z5_OP') ?? '').trim(), partidaOf = r => String(field(r, 'Z5_PARTIDA') ?? '').trim();
-const groupKey = r => `${opOf(r)}|${partidaOf(r)}`;
+const prodOf = r => String(field(r, 'Z5_PROD') ?? '').trim().toUpperCase();
+const groupKey = r => `${prodOf(r)}|${opOf(r)}|${partidaOf(r)}`;
 // rows já vêm ordenados (melhor primeiro): o grupo herda a posição do seu melhor rolo
 function groupRows(rows) {
   const map = new Map();
@@ -2423,7 +2475,7 @@ function openGroup(index) {
   const n = g.rows.length, approved = g.rows.filter(priorityMatch).length;
   const weight = g.rows.reduce((s, r) => s + (numericValue(field(r, 'Z5_PESOATU')) || 0), 0);
   $('groupTitle').textContent = `OP ${g.op || '—'} · Partida ${g.partida || '—'}`;
-  $('groupSub').textContent = `${selected?.code || ''} — ${groupLabel(g.rows[0])} · grupo ${index + 1} de ${currentGroups.length}`;
+  $('groupSub').textContent = `${selected?.multi ? prodOf(g.rows[0]) + ' · ' + String(field(g.rows[0], 'B1_DESC') || '').trim() : selected?.code || ''} — ${groupLabel(g.rows[0])} · grupo ${index + 1} de ${currentGroups.length}`;
   const nAddr = new Set(g.rows.map(addrOf).filter(Boolean)).size;
   $('groupStats').textContent = `${n} rolo${n === 1 ? '' : 's'} · ${fmtNum(weight, 2)} kg · ${nAddr} endereço${nAddr === 1 ? '' : 's'}`;
   $('groupTable').replaceChildren(rollTable(g, visibleRows));
@@ -2438,10 +2490,14 @@ function openGroup(index) {
   $('closeGroup').focus();
 }
 function closeGroup() { $('groupModal').classList.add('hidden'); groupIndex = -1; }
-function renderStock(rows) {
+const STOCK_STEP = 400;   // grupos desenhados por vez (armazém inteiro pode ter milhares)
+let stockLimit = STOCK_STEP;
+function renderStock(rows, keepLimit = false) {
   const tbody = $('stockBody'); tbody.replaceChildren();
+  if (!keepLimit) stockLimit = STOCK_STEP;
   const groups = groupRows(rows);
   groups.forEach((g, gi) => {
+    if (gi >= stockLimit) return;
     const tr = document.createElement('tr');
     const approved = g.rows.filter(priorityMatch).length, n = g.rows.length;
     const gd = defectFor(g.rows[0]), om = opMatch(g.rows[0]) && !gd;
@@ -2466,7 +2522,7 @@ function renderStock(rows) {
     status.append(sub); tr.append(status);
     add(g.op || '—', 'op-cell');
     add(g.partida || '—', 'op-cell');
-    add(groupLabel(g.rows[0]), 'desc-cell');
+    add(selected?.multi ? `${prodOf(g.rows[0])} — ${String(field(g.rows[0], 'B1_DESC') || groupLabel(g.rows[0])).trim()}` : groupLabel(g.rows[0]), 'desc-cell');
     add(String(n), 'num-cell');
     const latest = g.rows.reduce((a, r) => dateValue(field(r, 'Z5_DTENT')) > dateValue(field(a, 'Z5_DTENT')) ? r : a, g.rows[0]);
     add(formatDate(field(latest, 'Z5_DTENT')), 'date-cell');
@@ -2488,6 +2544,15 @@ function renderStock(rows) {
     };
     tbody.append(tr);
   });
+  if (groups.length > stockLimit) {
+    const tr = document.createElement('tr'); tr.className = 'more-row';
+    const td = document.createElement('td'); td.colSpan = 20;
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'secondary more-btn';
+    const next = Math.min(STOCK_STEP, groups.length - stockLimit);
+    b.textContent = `Mostrar mais ${next.toLocaleString('pt-BR')} (exibindo ${stockLimit.toLocaleString('pt-BR')} de ${groups.length.toLocaleString('pt-BR')} grupos)`;
+    b.onclick = () => { const y = window.scrollY; stockLimit += STOCK_STEP; renderStock(rows, true); window.scrollTo({ top: y, behavior: 'instant' }); };
+    td.append(b); tr.append(td); tbody.append(tr);
+  }
   currentGroups = groups;
   updatePunhoUi();
   const weight = rows.reduce((sum, r) => sum + (numericValue(field(r, 'Z5_PESOATU')) || 0), 0);

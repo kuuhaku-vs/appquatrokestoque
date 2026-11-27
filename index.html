@@ -13,7 +13,7 @@
 <!-- ?v=: mude o número junto com o CACHE do sw.js a cada atualização, para o celular nunca misturar arquivo novo com antigo -->
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611271745">
+<link rel="stylesheet" href="styles.css?v=202611271815">
 </head>
 <body>
 <button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
@@ -116,6 +116,7 @@
             <option value="Z5_PARTIDA">Partida</option>
             <option value="Z5_ALMOXA">Armazém</option>
             <option value="Z6_GRUPO">Grupo de produto</option>
+            <option value="Z5_PROD">Produto (código)</option>
           </select>
         </label>
         <label class="filter-field filter-entry"><span id="filterValueLabel">RG</span>
@@ -394,10 +395,10 @@
     <div class="priority-actions"><button id="clearHistory" class="text-button danger" type="button">Limpar histórico</button><span class="spacer"></span><button id="historyClose2" class="secondary" type="button">Fechar</button></div>
   </div>
 </section>
-<script src="config.js?v=202611271745"></script>
-<script src="protheus.js?v=202611271745"></script>
-<script src="renderer.js?v=202611271745"></script>
-<script src="relatorio.js?v=202611271745"></script>
-<script src="etiqueta.js?v=202611271745"></script>
+<script src="config.js?v=202611271815"></script>
+<script src="protheus.js?v=202611271815"></script>
+<script src="renderer.js?v=202611271815"></script>
+<script src="relatorio.js?v=202611271815"></script>
+<script src="etiqueta.js?v=202611271815"></script>
 <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body></html>

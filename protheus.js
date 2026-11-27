@@ -443,6 +443,41 @@ async function searchByOp(opRaw, partidaRaw, whs = DEFAULT_WAREHOUSES) {
   return { op, partida, mode, warehouses: whs, products, truncated: !!r.truncated, attempts };
 }
 
+// Busca só pelo armazém (sem código do produto): todos os rolos com peso nos armazéns marcados.
+// Enriquecida com a descrição/grupo do produto (SB1, em lotes) e a gramatura ideal do grupo (SBM, em cache).
+async function searchWarehouse(whs = DEFAULT_WAREHOUSES) {
+  const attempts = [], t0 = Date.now();
+  let base = null;
+  try { base = await fetchAll({ tables: 'SZ5', fields: SZ5_FIELDS, where: `Z5_PESOATU > 0 AND ${whWhere(whs)}` }, { timeoutMs: Math.min(API_TIMEOUT_MS, 60000), adaptive: true, maxPages: 200 }); attempts.push({ label: 'SZ5 por armazém', rows: base.rows.length, ms: Date.now() - t0 }); }
+  catch (e) { if (e.status === 401 || e.status === 403) throw e; throw httpError(`A consulta do armazém ${whs.join('/')} falhou: ${String(e.message).slice(0, 300)}`, e.slow ? 504 : 502); }
+  const norm = v => String(v ?? '').trim();
+  const codes = [...new Set(base.rows.map(r => norm(field(r, 'Z5_PROD')).toUpperCase()).filter(Boolean))];
+  const prodInfo = new Map();
+  const BATCH = 40, PAR = 4, batches = [];
+  for (let i = 0; i < codes.length; i += BATCH) batches.push(codes.slice(i, i + BATCH));
+  for (let i = 0; i < batches.length; i += PAR) {
+    await Promise.all(batches.slice(i, i + PAR).map(async part => {
+      try {
+        const r = await fetchAll({ tables: 'SB1', fields: 'B1_COD,B1_DESC,B1_GRUPO', where: `B1_COD IN (${part.map(c => `'${c}'`).join(',')})` }, { maxPages: 1, pageSize: Math.max(part.length * 2, 10), timeoutMs: 30000 });
+        r.rows.forEach(row => { const c = norm(field(row, 'B1_COD')).toUpperCase(); if (c && !prodInfo.has(c)) prodInfo.set(c, { desc: norm(field(row, 'B1_DESC')), group: norm(field(row, 'B1_GRUPO')) }); });
+      } catch (e) { if (e.status === 401 || e.status === 403) throw e; attempts.push({ label: 'SB1 lote', error: String(e.message).slice(0, 160) }); }
+    }));
+  }
+  let sbm = null;
+  try { sbm = await loadSbm(); } catch (e) { if (e.status === 401 || e.status === 403) throw e; attempts.push({ label: 'SBM', error: String(e.message).slice(0, 160) }); }
+  const rows = base.rows.map(r => {
+    const o = { ...r }, info = prodInfo.get(norm(field(r, 'Z5_PROD')).toUpperCase());
+    if (info) {
+      if (info.desc) o.B1_DESC = info.desc;
+      if (info.group) { o.B1_GRUPO = info.group; if (!norm(field(o, 'Z6_GRUPO'))) o.Z6_GRUPO = info.group; }
+      const g = info.group && sbm ? sbm.groups.get(normGroup(info.group)) : null;
+      if (g) { if (g.description) o.BM_DESC = g.description; if (g.gramatura) o.BM_GRAMTIN = g.gramatura; }
+    }
+    return o;
+  });
+  return { rows, multi: true, warehouses: whs, products: codes.length, product: { code: '', description: '' }, total: rows.length, truncated: !!base.truncated, empty: !rows.length, diagnostic: { attempts } };
+}
+
 /* ------------------------- consulta HTTP ao Protheus ------------------------- */
 // Só Authorization e tenantId (liberados no CORS do Protheus); sem Content-Type, que exigiria outra liberação.
 function makeUrl(params) { const u = new URL(queryUrl()); for (const [k, v] of Object.entries(params)) u.searchParams.set(k, String(v)); return u.toString().replace(/\+/g, '%20'); }
@@ -606,6 +641,7 @@ async function handle(path, options = {}) {
   if (p.endsWith('/api/rg')) { need(); const g = k => url.searchParams.get(k) || ''; return findRoll({ rg: g('rg'), serie: g('serie'), numero: g('numero'), prods: g('prods') }); }
   if (p.endsWith('/api/mc')) { need(); return lookupMcCodes(url.searchParams.get('codes')); }
   if (p.endsWith('/api/suggest')) { need(); return suggestProducts(url.searchParams.get('q')); }
+  if (p.endsWith('/api/warehouse')) { need(); return searchWarehouse(warehousesFrom(url.searchParams.get('wh'))); }
   if (p.endsWith('/api/op')) { need(); return searchByOp(url.searchParams.get('op'), url.searchParams.get('partida'), warehousesFrom(url.searchParams.get('wh'))); }
   if (p.endsWith('/api/stock') || p.endsWith('/api/products')) {
     need();

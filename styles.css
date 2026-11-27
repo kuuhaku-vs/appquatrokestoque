@@ -1699,3 +1699,7 @@ html{scroll-behavior:smooth;scroll-padding-top:140px}
 /* a rolagem do mouse sempre passa para a página (sem ficar presa na lista) */
 #stockSection .table-wrap{overscroll-behavior:auto}
 @media(min-width:721px){ .stock-section:not(.hidden){overflow:visible} .stock-title{border-radius:12px 12px 0 0} #stats{border-radius:0 0 12px 12px} }
+/* "Mostrar mais" no fim da lista */
+#stockBody tr.more-row td{padding:16px!important;text-align:center!important;border:0}
+#stockBody tr.more-row .more-btn{height:40px;padding:0 18px;font-size:12.5px}
+@media(max-width:1149px){ #stockBody tr.more-row{display:block;grid-column:1/-1} #stockBody tr.more-row td{display:block} #stockBody tr.more-row .more-btn{width:100%} }
