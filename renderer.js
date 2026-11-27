@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const NOVA_VERSION = '27/11 16:30';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
+const NOVA_VERSION = '27/11 17:00';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -203,7 +203,8 @@ function setConnection(ok, user = '') {
 function loginError(text) { const b = $('loginError'); b.textContent = text || ''; b.classList.toggle('hidden', !text); }
 // Efeito "nova" entre login e pesquisa: o conteúdo se desfaz, as duas peças de canto deslizam até o
 // centro e formam a estrela (com um pulso); depois se abrem de novo mostrando a outra tela.
-const REDUCED_MOTION = (() => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; } })();
+// A animação da estrela roda sempre, mesmo com "efeitos de animação" desligados no Windows/celular (pedido da equipe).
+const REDUCED_MOTION = false;
 const wait = ms => new Promise(r => setTimeout(r, ms));
 let novaFxRunning = false;
 function fxVars(card) {
