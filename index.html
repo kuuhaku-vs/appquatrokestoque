@@ -8,12 +8,12 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="NOVA"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0e2259"><title>NOVA | Consulta de Estoque</title>
+<meta name="theme-color" content="#06195a"><title>NOVA | Consulta de Estoque</title>
 <script>try{if(localStorage.getItem('nova_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <!-- ?v=: mude o número junto com o CACHE do sw.js a cada atualização, para o celular nunca misturar arquivo novo com antigo -->
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611271530">
+<link rel="stylesheet" href="styles.css?v=202611271600">
 </head>
 <body>
 <button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
@@ -21,7 +21,7 @@
 
 <!-- barra de navegação do celular (só aparece em telas pequenas, depois do login) -->
 <nav id="mobileNav" class="mobile-nav" aria-label="Navegação">
-  <div class="nav-brand"><span class="nav-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span><span><strong>NOVA</strong><small>Estoque de malhas</small></span></div>
+  <div class="nav-brand"><img class="nav-mark" src="icon.svg" alt="" aria-hidden="true"><span><strong>NOVA</strong><small>4K Estoque Malhas</small></span></div>
   <button type="button" id="navSearch" title="Pesquisar" class="on"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></span><span>Pesquisar</span></button>
   <button type="button" id="navOp" title="Buscar por OP / partida" class="nav-desk"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h6"/><circle cx="17.5" cy="16.5" r="3"/><path d="m21.5 20.5-1.8-1.8"/></svg></span><span>OP / partida</span></button>
   <button type="button" id="navScan" title="Ler QR da etiqueta"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4M7 12h10"/></svg></span><span>Ler QR</span></button>
@@ -34,14 +34,9 @@
 
 <!-- 1) LOGIN -->
 <div id="loginView" class="screen center-screen hidden">
-  <aside class="login-aside" aria-hidden="true">
-    <div class="la-brand"><span class="nav-mark"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span><strong>NOVA</strong></div>
-    <p class="la-title">Estoque de malhas do Grupo Quatro K, direto do Protheus.</p>
-    <ul class="la-list"><li>Rolos por OP, partida e endereço</li><li>Armazéns que você escolher</li><li>Pastas de separação da equipe</li></ul>
-  </aside>
   <form id="loginForm" class="center-card login-card" autocomplete="on" novalidate>
     <span class="nova-fx nova-corner tl" aria-hidden="true"></span><span class="nova-fx nova-corner br" aria-hidden="true"></span><span class="nova-fx nova-ring" aria-hidden="true"></span><span class="nova-fx nova-core" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span>
-    <div class="card-brand"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>Estoque de malhas</small></div></div>
+    <div class="card-brand"><img class="brand-mark" src="icon-192.png" alt="" aria-hidden="true"><div><strong>NOVA</strong><small>4K Estoque Malhas</small></div></div>
     <h1>Entrar</h1>
     <p class="card-sub">Use seu usuário e senha do Protheus.</p>
     <div id="faceLogin" class="face-login hidden">
@@ -63,7 +58,7 @@
 <!-- 2) PESQUISA -->
 <div id="searchView" class="screen center-screen hidden">
   <div class="screen-top">
-    <div class="card-brand light"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>Estoque de malhas</small></div></div>
+    <div class="card-brand light"><img class="brand-mark" src="icon.svg" alt="" aria-hidden="true"><div><strong>NOVA</strong><small>4K Estoque Malhas</small></div></div>
     <div class="top-actions"><button type="button" id="phoneBtn" class="secondary phone-btn hidden">📱 Usar no celular</button><div class="user-chip"><span class="user-dot" data-avatar>?</span><span data-user></span><button type="button" class="text-button logout-btn">Sair</button></div></div>
   </div>
   <form id="codeForm" class="center-card search-card" novalidate>
@@ -91,7 +86,7 @@
 <!-- 3) RESULTADO (endereços) -->
 <div id="resultsView" class="app-shell hidden">
   <header class="topbar">
-    <div class="brand"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>Estoque de malhas</small></div></div>
+    <div class="brand"><img class="brand-mark" src="icon.svg" alt="" aria-hidden="true"><div><strong>NOVA</strong><small>4K Estoque Malhas</small></div></div>
     <form class="header-search" id="headerSearch" aria-label="Nova consulta" novalidate>
       <div class="search-input-wrap"><span>⌕</span><input id="term" maxlength="60" autocomplete="off" autocorrect="off" enterkeyhint="search" placeholder="Código (12 caracteres) ou nome do artigo" spellcheck="false" aria-label="Código do produto ou nome do artigo" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="termSuggest"><div id="termSuggest" class="suggest suggest-pop hidden" role="listbox" aria-label="Sugestões de produto"></div></div>
       <button id="searchBtn" class="primary search-btn" type="submit">Pesquisar</button>
@@ -399,10 +394,10 @@
     <div class="priority-actions"><button id="clearHistory" class="text-button danger" type="button">Limpar histórico</button><span class="spacer"></span><button id="historyClose2" class="secondary" type="button">Fechar</button></div>
   </div>
 </section>
-<script src="config.js?v=202611271530"></script>
-<script src="protheus.js?v=202611271530"></script>
-<script src="renderer.js?v=202611271530"></script>
-<script src="relatorio.js?v=202611271530"></script>
-<script src="etiqueta.js?v=202611271530"></script>
+<script src="config.js?v=202611271600"></script>
+<script src="protheus.js?v=202611271600"></script>
+<script src="renderer.js?v=202611271600"></script>
+<script src="relatorio.js?v=202611271600"></script>
+<script src="etiqueta.js?v=202611271600"></script>
 <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body></html>
