@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const NOVA_VERSION = '27/11 14:00';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
+const NOVA_VERSION = '27/11 15:30';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -98,8 +98,10 @@ function setTheme(t) {
   b.textContent = dark ? '☀ Tema claro' : '☾ Tema escuro';
   b.setAttribute('aria-label', dark ? 'Mudar para o tema claro' : 'Mudar para o tema escuro');
   $('themeToggle2').textContent = dark ? '☀' : '☾';
-  $('navThemeIcon').textContent = dark ? '☀' : '☾';
-  $('navThemeLabel').textContent = dark ? 'Claro' : 'Escuro';
+  $('navThemeIcon').innerHTML = dark
+    ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>'
+    : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
+  $('navThemeLabel').textContent = dark ? 'Tema claro' : 'Tema escuro';
 }
 
 /* ------------------------- janela de confirmação ------------------------- */
@@ -209,7 +211,7 @@ function fxVars(card) {
   card.style.setProperty('--fx-x', `${(r.width - c) / 2}px`);
   card.style.setProperty('--fx-y', `${(r.height - c) / 2}px`);
 }
-const fxOn = card => !REDUCED_MOTION && card && card.offsetParent;
+const fxOn = () => false;   // layout corporativo: sem a animação da estrela ao pesquisar
 // fecha o cartão na estrela; loading = a estrela fica pulsando (consulta em andamento)
 async function novaClose(card, { loading = false } = {}) {
   if (!fxOn(card)) return;
@@ -2700,6 +2702,8 @@ $('navSearch').onclick = () => {
   const i = $('codeInput'); if (i) setTimeout(() => i.focus(), 50);
 };
 $('navFolders').onclick = () => openFolders();
+$('navOp').onclick = () => openOpSearch();
+$('navScan').onclick = () => $('scanBtn').click();
 $('navHistory').onclick = () => openHistory();
 $('navTheme').onclick = () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
 $('folderClearCancel').onclick = closeClearBox;

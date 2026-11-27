@@ -8,10 +8,12 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="NOVA"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0d2f50"><title>NOVA | Consulta de Estoque</title>
+<meta name="theme-color" content="#0e2259"><title>NOVA | Consulta de Estoque</title>
 <script>try{if(localStorage.getItem('nova_theme')==='dark')document.documentElement.dataset.theme='dark'}catch(e){}</script>
 <!-- ?v=: mude o número junto com o CACHE do sw.js a cada atualização, para o celular nunca misturar arquivo novo com antigo -->
-<link rel="stylesheet" href="styles.css?v=202611271400">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css?v=202611271530">
 </head>
 <body>
 <button id="themeToggle" class="theme-toggle" type="button">☾ Tema escuro</button>
@@ -19,17 +21,27 @@
 
 <!-- barra de navegação do celular (só aparece em telas pequenas, depois do login) -->
 <nav id="mobileNav" class="mobile-nav" aria-label="Navegação">
-  <button type="button" id="navSearch" class="on"><span class="ni">🔍</span><span>Pesquisar</span></button>
-  <button type="button" id="navFolders"><span class="ni">📁<i id="navFolderDot" class="hidden"></i></span><span id="navFoldersLabel">Pastas</span></button>
-  <button type="button" id="navHistory"><span class="ni">🕘</span><span>Histórico</span></button>
-  <button type="button" id="navTheme"><span class="ni" id="navThemeIcon">☾</span><span id="navThemeLabel">Tema</span></button>
+  <div class="nav-brand"><span class="nav-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span><span><strong>NOVA</strong><small>Estoque de malhas</small></span></div>
+  <button type="button" id="navSearch" title="Pesquisar" class="on"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></span><span>Pesquisar</span></button>
+  <button type="button" id="navOp" title="Buscar por OP / partida" class="nav-desk"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h6"/><circle cx="17.5" cy="16.5" r="3"/><path d="m21.5 20.5-1.8-1.8"/></svg></span><span>OP / partida</span></button>
+  <button type="button" id="navScan" title="Ler QR da etiqueta"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4M7 12h10"/></svg></span><span>Ler QR</span></button>
+  <button type="button" id="navFolders" title="Pastas"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><i id="navFolderDot" class="hidden"></i></span><span id="navFoldersLabel">Pastas</span></button>
+  <button type="button" id="navHistory" title="Histórico"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.6"/><path d="M4 4v4.6h4.6M12 8v4.5l3 1.8"/></svg></span><span>Histórico</span></button>
+  <span class="nav-spacer" aria-hidden="true"></span>
+  <button type="button" id="navTheme" title="Alternar tema"><span class="ni" id="navThemeIcon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span><span id="navThemeLabel">Tema escuro</span></button>
+  <div class="nav-user"><span class="user-dot" data-avatar>?</span><span class="nav-user-name" data-user></span><button type="button" class="text-button logout-btn">Sair</button></div>
 </nav>
 
 <!-- 1) LOGIN -->
 <div id="loginView" class="screen center-screen hidden">
+  <aside class="login-aside" aria-hidden="true">
+    <div class="la-brand"><span class="nav-mark"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span><strong>NOVA</strong></div>
+    <p class="la-title">Estoque de malhas do Grupo Quatro K, direto do Protheus.</p>
+    <ul class="la-list"><li>Rolos por OP, partida e endereço</li><li>Armazéns que você escolher</li><li>Pastas de separação da equipe</li></ul>
+  </aside>
   <form id="loginForm" class="center-card login-card" autocomplete="on" novalidate>
     <span class="nova-fx nova-corner tl" aria-hidden="true"></span><span class="nova-fx nova-corner br" aria-hidden="true"></span><span class="nova-fx nova-ring" aria-hidden="true"></span><span class="nova-fx nova-core" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span>
-    <div class="card-brand"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
+    <div class="card-brand"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>Estoque de malhas</small></div></div>
     <h1>Entrar</h1>
     <p class="card-sub">Use seu usuário e senha do Protheus.</p>
     <div id="faceLogin" class="face-login hidden">
@@ -41,6 +53,7 @@
     <div class="field"><label for="password">Senha</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Digite sua senha..." required><button type="button" id="togglePassword" class="eye-btn" aria-label="Mostrar senha" title="Mostrar senha">◉</button></div></div>
     <label class="remember"><input type="checkbox" id="remember"> <span>Mantenha-me conectado</span></label>
     <button id="connectBtn" class="primary big-btn" type="submit">Entrar</button>
+    <img class="login-logo" src="logo-grupo4k.png" alt="Grupo Quatro K">
     <div id="loginError" class="form-error hidden" role="alert"></div>
     <button id="faceRemove" class="link-btn face-remove hidden" type="button">Remover Face ID deste aparelho</button>
   </form>
@@ -50,12 +63,12 @@
 <!-- 2) PESQUISA -->
 <div id="searchView" class="screen center-screen hidden">
   <div class="screen-top">
-    <div class="card-brand light"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
+    <div class="card-brand light"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>Estoque de malhas</small></div></div>
     <div class="top-actions"><button type="button" id="phoneBtn" class="secondary phone-btn hidden">📱 Usar no celular</button><div class="user-chip"><span class="user-dot" data-avatar>?</span><span data-user></span><button type="button" class="text-button logout-btn">Sair</button></div></div>
   </div>
   <form id="codeForm" class="center-card search-card" novalidate>
     <span class="nova-fx nova-corner tl" aria-hidden="true"></span><span class="nova-fx nova-corner br" aria-hidden="true"></span><span class="nova-fx nova-ring" aria-hidden="true"></span><span class="nova-fx nova-core" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 1.5l2.2 7.2 7.3 2.3-7.3 2.3L12 22.5l-2.2-9.2L2.5 11l7.3-2.3z"/></svg></span>
-    <div id="activeFolderBar" class="active-folder hidden"><span>📁 Pasta <b id="activeFolderName"></b></span><button type="button" id="activeFolderOpen" class="btn-soft tone-ok">Ver pasta</button><button type="button" id="activeFolderEnd" class="btn-soft">Encerrar</button></div>
+    <div id="activeFolderBar" class="active-folder hidden"><span><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>Pasta <b id="activeFolderName"></b></span><button type="button" id="activeFolderOpen" class="btn-soft tone-ok">Ver pasta</button><button type="button" id="activeFolderEnd" class="btn-soft">Encerrar</button></div>
     <div id="faceOffer" class="face-offer hidden"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M9 9.5v1M15 9.5v1M12 9.5v3.5h-1M9.5 16c1.5 1 3.5 1 5 0"/></svg><span id="faceOfferText">Entrar com Face ID nas próximas vezes?</span><button id="faceEnable" class="primary" type="button">Ativar</button><button id="faceLater" class="link-btn" type="button">Agora não</button></div>
     <h1>Consultar Material</h1>
     <p class="card-sub">Digite o código do produto (12 caracteres) ou o nome do artigo e escolha na lista.</p>
@@ -65,21 +78,23 @@
     </div>
     <div id="codeSuggest" class="suggest hidden" role="listbox" aria-label="Sugestões de produto"></div>
     <div class="wh-row"><span class="wh-label">Armazéns</span><div id="whBox" class="wh-chips" role="group" aria-label="Armazéns da consulta"></div></div>
-    <button id="codeBtn" class="primary big-btn" type="submit" disabled>Pesquisar <b>→</b></button>
-    <button type="button" id="opBtn" class="secondary big-btn folders-btn">🔎 Buscar por OP / partida</button>
-    <button type="button" id="scanBtn" class="secondary big-btn folders-btn scan-btn">📷 Ler etiqueta (QR code)</button>
-    <button type="button" id="foldersBtn" class="secondary big-btn folders-btn">📁 Pastas</button>
-    <div class="history-link-wrap"><button type="button" id="openHistory" class="link-btn hidden">🕘 Ver histórico de pesquisas</button></div>
+    <button id="codeBtn" class="primary big-btn" type="submit" disabled>Pesquisar</button>
+    <div class="search-shortcuts">
+    <button type="button" id="opBtn" class="secondary big-btn folders-btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h6"/><circle cx="17.5" cy="16.5" r="3"/><path d="m21.5 20.5-1.8-1.8"/></svg>Buscar por OP / partida</button>
+    <button type="button" id="scanBtn" class="secondary big-btn folders-btn scan-btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4M7 12h10"/></svg>Ler etiqueta (QR code)</button>
+    <button type="button" id="foldersBtn" class="secondary big-btn folders-btn"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>Pastas</button>
+    </div>
+    <div class="history-link-wrap"><button type="button" id="openHistory" class="link-btn hidden">Ver histórico de pesquisas</button></div>
   </form>
 </div>
 
 <!-- 3) RESULTADO (endereços) -->
 <div id="resultsView" class="app-shell hidden">
   <header class="topbar">
-    <div class="brand"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>CONSULTA DE ESTOQUE</small></div></div>
+    <div class="brand"><div class="brand-mark" aria-hidden="true"><svg class="joia" viewBox="0 0 24 24"><path d="M12 12L12 1.5L9.2 9.2z" fill="#ffe7a6"/><path d="M12 12L12 1.5L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 9.2z" fill="#f6c35e"/><path d="M12 12L22.5 12L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L14.8 14.8z" fill="#b8740f"/><path d="M12 12L12 22.5L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 14.8z" fill="#e09a2a"/><path d="M12 12L1.5 12L9.2 9.2z" fill="#ffe7a6"/></svg></div><div><strong>NOVA</strong><small>Estoque de malhas</small></div></div>
     <form class="header-search" id="headerSearch" aria-label="Nova consulta" novalidate>
       <div class="search-input-wrap"><span>⌕</span><input id="term" maxlength="60" autocomplete="off" autocorrect="off" enterkeyhint="search" placeholder="Código (12 caracteres) ou nome do artigo" spellcheck="false" aria-label="Código do produto ou nome do artigo" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="termSuggest"><div id="termSuggest" class="suggest suggest-pop hidden" role="listbox" aria-label="Sugestões de produto"></div></div>
-      <button id="searchBtn" class="primary search-btn" type="submit">Pesquisar <b>→</b></button>
+      <button id="searchBtn" class="primary search-btn" type="submit">Pesquisar</button>
     </form>
     <div class="topbar-right">
       <button id="newSearchBtn" class="header-login" type="button" aria-label="Nova pesquisa">← <span class="lbl">Nova pesquisa</span></button>
@@ -89,7 +104,7 @@
   </header>
   <main>
     <section id="stockSection" class="stock-section hidden">
-      <div class="stock-title"><div><span class="section-kicker">RESULTADO DO ESTOQUE</span><h2 id="selectedProduct"></h2></div><div class="stock-title-actions"><button id="foldersBtn2" class="secondary folders-btn2" type="button">📁 <span id="foldersBtn2Label">Pastas</span></button><button id="punhoBtn" class="secondary punho-btn" type="button">🧵 Punhos</button><button id="prioritySettingsBtn" class="secondary" type="button">⚙ Prioridades</button><button id="closeResults" class="close-results" type="button" aria-label="Voltar para a pesquisa" title="Voltar para a pesquisa">×</button></div></div>
+      <div class="stock-title"><div><span class="section-kicker">RESULTADO DO ESTOQUE</span><h2 id="selectedProduct"></h2></div><div class="stock-title-actions"><button id="foldersBtn2" class="secondary folders-btn2" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.2h7a2 2 0 0 1 2 2v7.8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg><span id="foldersBtn2Label">Pastas</span></button><button id="punhoBtn" class="secondary punho-btn" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="7" cy="12" rx="3" ry="7"/><path d="M7 5h10c1.7 0 3 3.1 3 7s-1.3 7-3 7H7"/></svg>Punhos</button><button id="prioritySettingsBtn" class="secondary" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Prioridades</button><button id="closeResults" class="close-results" type="button" aria-label="Voltar para a pesquisa" title="Voltar para a pesquisa">×</button></div></div>
       <div id="punhoBanner" class="punho-banner hidden"><span class="punho-ico">★</span><span id="punhoBannerText"></span><button id="punhoBack" class="secondary" type="button">← Voltar para a malha</button></div>
       <div id="punhoBar" class="punho-bar hidden"><span class="punho-ico">🧵</span><span id="punhoBarText"></span><span class="spacer"></span><button id="punhoCancel" class="text-button" type="button">Cancelar</button><button id="punhoGo" class="primary" type="button" disabled>Buscar punho →</button></div>
       <div class="filter-strip">
@@ -113,7 +128,7 @@
         </label>
         <span id="filterCount" class="filter-count">0 rolos</span>
         <button id="clearFilters" class="clear-filter" type="button">Limpar</button>
-        <button id="printBtn" class="secondary export-btn" type="button" disabled>🖨 Imprimir relatório</button>
+        <button id="printBtn" class="secondary export-btn" type="button" disabled><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9V4h10v5M7 17H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2"/><path d="M7 14h10v6H7z"/></svg>Imprimir relatório</button>
       </div>
       <div class="table-panel"><div class="table-wrap"><table><thead><tr><th id="selCol" class="sel-col hidden"><input type="checkbox" id="selAll" aria-label="Selecionar todos os grupos"></th><th class="prio-th">Prioridade</th><th>OP</th><th>Partida</th><th>Descrição</th><th class="num-cell">Rolos</th><th>Data de Entrada</th><th class="num-cell">Peso total</th><th class="num-cell">Gramatura</th><th class="num-cell">CMC</th><th>Endereços</th><th></th></tr></thead><tbody id="stockBody"></tbody></table></div><div id="emptyStock" class="empty hidden">Nenhum rolo encontrado com esses filtros.</div></div>
       <div id="stats" class="hidden"></div>
@@ -359,7 +374,7 @@
         </div>
       </div>
       <div id="folderBody" class="folder-body"></div>
-      <div class="fv-dock"><button id="folderScan" class="primary" type="button" title="Ler o QR code da etiqueta do rolo">📷 Ler QR do rolo</button><button id="folderSearch" class="fv-dock-sec" type="button" title="Pesquisar um código e salvar nesta pasta">＋ Código</button></div>
+      <div class="fv-dock"><button id="folderScan" class="primary" type="button" title="Ler o QR code da etiqueta do rolo"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4M7 12h10"/></svg>Ler QR do rolo</button><button id="folderSearch" class="fv-dock-sec" type="button" title="Pesquisar um código e salvar nesta pasta">＋ Código</button></div>
       <div id="folderMenu" class="fv-menu hidden" role="dialog" aria-modal="true" aria-labelledby="folderMenuTitle">
         <div class="fv-sheet">
           <div class="fv-grab" aria-hidden="true"></div>
@@ -384,10 +399,10 @@
     <div class="priority-actions"><button id="clearHistory" class="text-button danger" type="button">Limpar histórico</button><span class="spacer"></span><button id="historyClose2" class="secondary" type="button">Fechar</button></div>
   </div>
 </section>
-<script src="config.js?v=202611271400"></script>
-<script src="protheus.js?v=202611271400"></script>
-<script src="renderer.js?v=202611271400"></script>
-<script src="relatorio.js?v=202611271400"></script>
-<script src="etiqueta.js?v=202611271400"></script>
+<script src="config.js?v=202611271530"></script>
+<script src="protheus.js?v=202611271530"></script>
+<script src="renderer.js?v=202611271530"></script>
+<script src="relatorio.js?v=202611271530"></script>
+<script src="etiqueta.js?v=202611271530"></script>
 <script>if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});</script>
 </body></html>
