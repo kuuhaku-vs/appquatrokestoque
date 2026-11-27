@@ -1707,3 +1707,23 @@ html{scroll-behavior:smooth;scroll-padding-top:140px}
 /* tela de pesquisa: sem rolagem quando tudo cabe (desconta as barras fixas) */
 @media(min-width:721px){ #searchView.screen{min-height:calc(100vh - 64px);min-height:calc(100dvh - 64px)} }
 @media(max-width:720px){ #searchView.screen{min-height:calc(100vh - 70px - env(safe-area-inset-bottom));min-height:calc(100dvh - 70px - env(safe-area-inset-bottom))} }
+
+/* celular: tela de pesquisa compacta para caber sem rolagem */
+@media(max-width:720px){
+  #searchView.center-screen{padding-bottom:10px}
+  #searchView .screen-top{padding-top:max(10px,env(safe-area-inset-top))}
+  #searchView .search-card{margin-top:12px;padding:18px 16px 14px}
+  #searchView .center-card h1{font-size:19px;margin-bottom:2px}
+  #searchView .card-sub{font-size:12px;margin-bottom:12px;line-height:1.35}
+  #searchView .code-wrap{margin-bottom:12px}
+  #searchView .code-input{height:52px}
+  #searchView .wh-row{margin:8px 0 0}
+  #codeBtn{margin-top:12px;height:46px}
+  .search-shortcuts{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px;padding-top:14px}
+  .search-shortcuts .big-btn{height:auto;min-height:62px;flex-direction:column;gap:5px;padding:8px 4px;font-size:11.5px;line-height:1.2;white-space:normal;text-align:center}
+  .search-shortcuts .big-btn .ic{margin:0;width:20px;height:20px}
+  #searchView .history-link-wrap{margin-top:8px}
+  #searchView .app-version{margin-top:8px}
+}
+@media(max-width:720px){ .search-shortcuts .big-btn{font-size:11.5px!important;font-weight:600} }
+@media(max-width:374px){ .search-shortcuts .big-btn{font-size:10.5px!important} }
