@@ -1644,7 +1644,7 @@ html{scrollbar-width:thin;scrollbar-color:#a9b9e3 transparent}
 html{scroll-behavior:smooth;scroll-padding-top:140px}
 
 /* ---------- resultado em cartões (janelas menores que a tabela) ---------- */
-@media(max-width:1299px){
+@media(max-width:1149px){
   #stockSection .table-panel{background:var(--canvas)}
   #stockSection .table-wrap{overflow:visible;max-height:none}
   #stockSection table,#stockSection tbody{display:block;width:100%}
@@ -1678,3 +1678,18 @@ html{scroll-behavior:smooth;scroll-padding-top:140px}
 }
 #stockBody td.op-cell{overflow-wrap:normal;white-space:nowrap;font-variant-numeric:tabular-nums}
 @media(max-width:720px){ #stockBody tr.group-row{grid-template-columns:1.45fr 1fr 1fr} #stockBody td.op-cell{font-size:14.5px} }
+
+/* ---------- tabela do resultado cabe na janela (sem rolagem lateral) ---------- */
+@media(min-width:1150px){
+  #resultsView main{width:100%;padding:14px clamp(10px,1.2vw,20px) 32px}
+  #stockSection table{white-space:normal;table-layout:auto}
+  #stockSection thead th{padding:10px 8px;white-space:normal;line-height:1.25}
+  #stockBody td{padding:9px 8px}
+  #stockBody td.priority-cell{white-space:nowrap;padding-left:14px}
+  #stockBody td.op-cell,#stockBody td.num-cell{white-space:nowrap}
+  #stockBody .desc-cell{min-width:110px;max-width:220px}
+  #stockBody .address-cell{max-width:190px;white-space:normal;overflow:visible;overflow-wrap:anywhere;line-height:1.35}
+  #stockBody td.detail-cell{padding-right:14px}
+  #stockBody .expand-btn{height:30px;padding:0 10px;font-size:11.5px}
+  #stockSection .table-wrap{overflow-x:auto}
+}
