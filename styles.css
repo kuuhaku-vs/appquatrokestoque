@@ -1691,5 +1691,11 @@ html{scroll-behavior:smooth;scroll-padding-top:140px}
   #stockBody .address-cell{max-width:190px;white-space:normal;overflow:visible;overflow-wrap:anywhere;line-height:1.35}
   #stockBody td.detail-cell{padding-right:14px}
   #stockBody .expand-btn{height:30px;padding:0 10px;font-size:11.5px}
-  #stockSection .table-wrap{overflow-x:auto}
+  #stockSection .table-wrap{overflow:visible;overscroll-behavior:auto;min-height:0}
+  #stockSection .table-panel{overflow:visible}
+  #stockSection thead th{top:126px;z-index:3}
 }
+
+/* a rolagem do mouse sempre passa para a página (sem ficar presa na lista) */
+#stockSection .table-wrap{overscroll-behavior:auto}
+@media(min-width:721px){ .stock-section:not(.hidden){overflow:visible} .stock-title{border-radius:12px 12px 0 0} #stats{border-radius:0 0 12px 12px} }
