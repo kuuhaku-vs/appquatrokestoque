@@ -4,8 +4,8 @@
 // tela nova com estilo antigo logo depois de uma atualização.
 // Consultas ao Protheus (outro endereço) nunca passam pelo cache.
 // A cada atualização: mude o CACHE aqui e o ?v= dos arquivos no index.html.
-const CACHE = 'nova-202611271845';
-const ASSETS = ['./', './index.html', './styles.css', './renderer.js', './relatorio.js', './etiqueta.js', './protheus.js', './config.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png', './icon.svg', './icon-maskable-512.png', './logo-grupo4k.png'];
+const CACHE = 'nova-202611271900';
+const ASSETS = ['./', './index.html', './styles.css', './renderer.js', './relatorio.js', './etiqueta.js', './protheus.js', './config.js', './manifest.webmanifest', './icon-4k-192.png', './icon-4k-256.png', './icon-4k-512.png', './icon-4k-apple-180.png', './icon.svg', './icon-4k-maskable-512.png', './logo-grupo4k.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(a => new Request(a, { cache: 'reload' })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {
