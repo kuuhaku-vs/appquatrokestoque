@@ -88,7 +88,13 @@ function field(obj, name) {
 function safeCode(v) { return String(v || '').trim().toUpperCase().replace(/[\u0000-\u001f]/g, '').replace(/'/g, "''"); }
 
 
-const STOCK_WAREHOUSES = ['01', '93', '98'];   // armazéns que entram na consulta de estoque
+// Armazéns: a lista disponível e os marcados por padrão vêm do config.js (armazens / armazensPadrao).
+// Quem escolhe quais entram em cada consulta é a tela (parâmetro wh=01,93,98); nada disso fica fixo aqui.
+const cleanWh = v => String(v ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+const whList = list => [...new Set((Array.isArray(list) ? list : String(list || '').split(',')).map(cleanWh).filter(Boolean))].slice(0, 30);
+const DEFAULT_WAREHOUSES = whList(CFG.armazensPadrao).length ? whList(CFG.armazensPadrao) : ['01', '93', '98'];
+const warehousesFrom = param => { const l = whList(param); return l.length ? l : DEFAULT_WAREHOUSES; };
+const whWhere = whs => `(${whs.map(w => `Z5_ALMOXA = '${w}'`).join(' OR ')})`;
 const SZ5_FIELDS = 'Z5_PROD,Z5_ALMOXA,Z5_SERIE,Z5_NUMERO,Z5_ENDEREC,Z5_PESOATU,Z5_CMC,Z5_GRAMATU,Z5_TONALID,Z5_OP,Z5_PARTIDA,Z5_DTENT,Z5_4KDTEND,Z5_DOCCQ,Z5_ROMAN,Z5_ULTATU';
 const KEY_FIELDS = ['Z5_PROD', 'Z5_ALMOXA', 'Z5_SERIE', 'Z5_NUMERO', 'Z5_ENDEREC', 'Z5_PARTIDA'];
 const rowKey = r => KEY_FIELDS.map(k => String(field(r, k) ?? '').trim()).join('|');
@@ -313,7 +319,7 @@ async function lookupMcCodes(list) {
 }
 
 // Pesquisa em etapas. A base (só SZ5) é a fonte confiável; SZ6/SZL só enriquecem se baterem 1:1.
-async function searchStock(code) {
+async function searchStock(code, whs = DEFAULT_WAREHOUSES) {
   const plain = code.replace(/''/g, "'");
   const attempts = [];
   const log = a => console.log(`[consulta ${plain}] ${a.label}: ${a.error ? 'ERRO ' + a.error.slice(0, 200) : a.rows + ' linha(s)'} (${a.ms} ms)`);
@@ -325,8 +331,8 @@ async function searchStock(code) {
       const a = { label, error: e.message, ms: Date.now() - t, slow: !!e.slow }; attempts.push(a); log(a); return null;
     }
   };
-  // armazéns consultados: 01, 93 e 98 (lista em STOCK_WAREHOUSES)
-  const stockWhere = cond => `Z5_PESOATU > 0 AND ${cond} AND (${STOCK_WAREHOUSES.map(w => `Z5_ALMOXA = '${w}'`).join(' OR ')})`;
+  // armazéns consultados: os marcados na tela (whs)
+  const stockWhere = cond => `Z5_PESOATU > 0 AND ${cond} AND ${whWhere(whs)}`;
   const exact = `Z5_PROD = '${code}'`, prefix = `Z5_PROD LIKE '${code}%'`;
   // grupo/descrição: consulta pequena, em paralelo com a busca de estoque
   const lookupLog = (label, msg, ms) => { const a = { label, ms, ...(String(msg).startsWith('ERRO') ? { error: String(msg) } : { rows: parseInt(msg, 10) || 0 }) }; attempts.push(a); log(a); };
@@ -336,7 +342,7 @@ async function searchStock(code) {
   // 1) SZ5 pelo código exato. Três formatos de consulta, do mais completo ao mais simples:
   //    A) filtros completos no where; B) só o código no where (estoque/armazém filtrados aqui);
   //    C) todos os campos (só se a API recusou campos, não se apenas demorou).
-  const inStock = r => (parseNumber(field(r, 'Z5_PESOATU')) || 0) > 0 && STOCK_WAREHOUSES.includes(String(field(r, 'Z5_ALMOXA')).trim());
+  const inStock = r => (parseNumber(field(r, 'Z5_PESOATU')) || 0) > 0 && whs.includes(String(field(r, 'Z5_ALMOXA')).trim());
   const BASE_TIMEOUT = Math.min(API_TIMEOUT_MS, 60000);
   let base = null, usedFields = SZ5_FIELDS, mode = 'exata', onlyProductWhere = false;
   const plan = [
@@ -392,10 +398,50 @@ async function searchStock(code) {
     }
   }
   const description = String((lk && (lk.productDesc || lk.groupDesc)) || field(rows[0] || {}, 'Z9_DESC') || '').trim();
-  return { rows, product: { code: plain, description }, total: base.total || rows.length, pagesRead: base.pages, truncated: base.truncated, enriched, notice, mode, empty: rows.length === 0, lookup: lk && !lk.fatal ? { group: lk.group, groupDesc: lk.groupDesc, productDesc: lk.productDesc, gramIdeal: lk.gramIdeal } : null,
+  return { rows, warehouses: whs, product: { code: plain, description }, total: base.total || rows.length, pagesRead: base.pages, truncated: base.truncated, enriched, notice, mode, empty: rows.length === 0, lookup: lk && !lk.fatal ? { group: lk.group, groupDesc: lk.groupDesc, productDesc: lk.productDesc, gramIdeal: lk.gramIdeal } : null,
     diagnostic: { responseKeys: Object.keys(base.last || {}), returnedRows: rows.length, attempts, productExists } };
 }
 
+
+// Busca direta por OP e/ou partida, sem o código do produto: lista os produtos que têm rolos com peso
+// nos armazéns marcados. A tela abre o produto escolhido já filtrado pela OP/partida.
+async function searchByOp(opRaw, partidaRaw, whs = DEFAULT_WAREHOUSES) {
+  const clean = v => safeCode(v).replace(/[^A-Z0-9]/g, '').slice(0, 20);
+  const op = clean(opRaw), partida = clean(partidaRaw);
+  if (!op && !partida) throw httpError('Informe a OP ou a partida.', 400);
+  if ((op && op.length < 3) || (!op && partida.length < 3)) throw httpError('Digite pelo menos 3 caracteres da OP ou da partida.', 400);
+  const attempts = [];
+  const run = async (label, where) => {
+    const t = Date.now();
+    try { const r = await fetchAll({ tables: 'SZ5', fields: 'Z5_PROD,Z5_ALMOXA,Z5_OP,Z5_PARTIDA,Z5_PESOATU', where }, { timeoutMs: Math.min(API_TIMEOUT_MS, 60000), maxPages: 20, adaptive: true }); attempts.push({ label, rows: r.rows.length, ms: Date.now() - t }); return r; }
+    catch (e) { if (e.status === 401 || e.status === 403) throw e; attempts.push({ label, error: String(e.message).slice(0, 200), ms: Date.now() - t }); return null; }
+  };
+  const conds = mode => [op && (mode === 'prefixo' ? `Z5_OP LIKE '${op}%'` : `Z5_OP LIKE '%${op}%'`), partida && (mode === 'prefixo' ? `Z5_PARTIDA LIKE '${partida}%'` : `Z5_PARTIDA LIKE '%${partida}%'`)].filter(Boolean).join(' AND ');
+  // primeiro pelo começo da OP/partida (mais rápido); sem resultado, em qualquer posição
+  let r = await run('SZ5 por OP/partida', `Z5_PESOATU > 0 AND ${conds('prefixo')} AND ${whWhere(whs)}`), mode = 'prefixo';
+  if (r && !r.rows.length) { const r2 = await run('SZ5 por OP/partida (contém)', `Z5_PESOATU > 0 AND ${conds('contem')} AND ${whWhere(whs)}`); if (r2) { r = r2; mode = 'contem'; } }
+  if (!r) throw httpError(`A consulta por OP/partida falhou. ${attempts.map(a => a.error).filter(Boolean)[0] || ''}`.trim(), 502);
+  const norm = v => String(v ?? '').trim();
+  const byProd = new Map();
+  for (const row of r.rows) {
+    const code = norm(field(row, 'Z5_PROD')).toUpperCase(); if (!code) continue;
+    const p = byProd.get(code) || { code, description: '', rolls: 0, weight: 0, ops: new Set(), warehouses: new Set() };
+    p.rolls++; p.weight += parseNumber(field(row, 'Z5_PESOATU')) || 0;
+    p.ops.add(`${norm(field(row, 'Z5_OP'))}|${norm(field(row, 'Z5_PARTIDA'))}`); p.warehouses.add(norm(field(row, 'Z5_ALMOXA')));
+    byProd.set(code, p);
+  }
+  const codes = [...byProd.keys()].slice(0, 40);
+  if (codes.length) {
+    try {
+      const d = await fetchAll({ tables: 'SB1', fields: 'B1_COD,B1_DESC', where: `B1_COD IN (${codes.map(c => `'${c}'`).join(',')})` }, { maxPages: 1, pageSize: Math.max(codes.length * 2, 10), timeoutMs: 20000 });
+      d.rows.forEach(row => { const p = byProd.get(norm(field(row, 'B1_COD')).toUpperCase()); if (p && !p.description) p.description = norm(field(row, 'B1_DESC')); });
+    } catch (e) { if (e.status === 401 || e.status === 403) throw e; /* sem descrição: segue só com o código */ }
+  }
+  const products = [...byProd.values()].map(p => ({ code: p.code, description: p.description, rolls: p.rolls, weight: Math.round(p.weight * 100) / 100,
+    ops: [...p.ops].map(k => { const [o, pt] = k.split('|'); return { op: o, partida: pt }; }).slice(0, 20), warehouses: [...p.warehouses].sort() }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+  return { op, partida, mode, warehouses: whs, products, truncated: !!r.truncated, attempts };
+}
 
 /* ------------------------- consulta HTTP ao Protheus ------------------------- */
 // Só Authorization e tenantId (liberados no CORS do Protheus); sem Content-Type, que exigiria outra liberação.
@@ -560,12 +606,13 @@ async function handle(path, options = {}) {
   if (p.endsWith('/api/rg')) { need(); const g = k => url.searchParams.get(k) || ''; return findRoll({ rg: g('rg'), serie: g('serie'), numero: g('numero'), prods: g('prods') }); }
   if (p.endsWith('/api/mc')) { need(); return lookupMcCodes(url.searchParams.get('codes')); }
   if (p.endsWith('/api/suggest')) { need(); return suggestProducts(url.searchParams.get('q')); }
+  if (p.endsWith('/api/op')) { need(); return searchByOp(url.searchParams.get('op'), url.searchParams.get('partida'), warehousesFrom(url.searchParams.get('wh'))); }
   if (p.endsWith('/api/stock') || p.endsWith('/api/products')) {
     need();
     const code = safeCode(url.searchParams.get('code'));
     if (code.length < 2) throw httpError('Digite pelo menos 2 caracteres do código.', 400);
     if (code.length > 40) throw httpError('Código muito longo.', 400);
-    return searchStock(code);
+    return searchStock(code, warehousesFrom(url.searchParams.get('wh')));
   }
   throw httpError('Rota não encontrada.', 404);
 }

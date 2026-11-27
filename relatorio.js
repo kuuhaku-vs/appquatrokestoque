@@ -111,7 +111,7 @@ function parsePages(text, total) {
 }
 function filterDescription() {
   const v = $('filterValue').value.trim(), a = $('addressFilter').value;
-  return [punhoCtx ? `Punho p/ malha ${punhoCtx.malha.code} (${punhoCtx.ops.size} OP)` : '', a ? `Endereço: ${a}` : '', v ? `${$('filterType').selectedOptions[0].textContent}: “${v}”` : ''].filter(Boolean).join(' · ');
+  return [punhoCtx ? `Punho p/ malha ${punhoCtx.malha.code} (${punhoCtx.ops.size} OP)` : '', a ? `Endereço: ${a}` : '', `Armazéns: ${whLabel()}`, $('opFilter').value.trim() ? `OP: “${$('opFilter').value.trim()}”` : '', $('partidaFilter').value.trim() ? `Partida: “${$('partidaFilter').value.trim()}”` : '', v ? `${$('filterType').selectedOptions[0].textContent}: “${v}”` : ''].filter(Boolean).join(' · ');
 }
 
 function buildReport(o) {

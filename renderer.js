@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-const NOVA_VERSION = '24/11 17:30';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
+const NOVA_VERSION = '27/11 14:00';   // aparece na tela de pesquisa e nas pastas, para saber qual versão está aberta
 const SEARCH_TIMEOUT_MS = 200000; // a pesquisa pode ler várias páginas; o servidor limita em ~170 s
 const DEFAULT_TOLERANCE = 7;
 let connected = false, selected = null, currentRows = [], visibleRows = [];
@@ -626,6 +626,81 @@ let folderOpenId = null, folderShow = 'todo', folderPickPending = null, folderTi
 const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } };
 const lsDel = k => { try { localStorage.removeItem(k); } catch { /* sem armazenamento */ } };
+
+/* ------------------- armazéns da consulta ------------------- */
+// Lista e marcados por padrão vêm do config.js (armazens / armazensPadrao). Na tela, cada aparelho marca quais
+// armazéns entram na consulta e pode incluir outros (＋) sem mexer no código. Fica guardado neste aparelho.
+const WH_KEY = 'nova_armazens_v1';
+const whClean = v => String(v ?? '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+const whUniq = l => [...new Set((Array.isArray(l) ? l : []).map(whClean).filter(Boolean))];
+const whSort = l => [...l].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+const WH_CFG = whUniq((window.NOVA_CONFIG || {}).armazens).length ? whUniq(window.NOVA_CONFIG.armazens) : ['01', '89', '93', '97', '98'];
+const WH_DEFAULT = whUniq((window.NOVA_CONFIG || {}).armazensPadrao).length ? whUniq(window.NOVA_CONFIG.armazensPadrao) : ['01', '93', '98'];
+let loadedWh = null;   // armazéns usados na última consulta de estoque (para saber se precisa consultar de novo)
+function whState() {
+  const s = lsGet(WH_KEY, null) || {};
+  const extra = whUniq(s.extra).filter(w => !WH_CFG.includes(w));
+  const all = whSort([...new Set([...WH_CFG, ...WH_DEFAULT, ...extra])]);
+  let sel = whUniq(s.selected).filter(w => all.includes(w));
+  if (!sel.length) sel = WH_DEFAULT.filter(w => all.includes(w));
+  return { all, extra, selected: whSort(sel) };
+}
+function whSave(st) { lsSet(WH_KEY, { extra: st.extra, selected: st.selected }); }
+const whSelected = () => whState().selected;
+const whParam = () => whSelected().join(',');
+const whLabel = (l = whSelected()) => l.join('/');
+function renderWh() {
+  const st = whState();
+  ['whBox', 'whBox2', 'whBox3'].forEach(id => {
+    const box = $(id); if (!box) return;
+    box.replaceChildren();
+    st.all.forEach(w => {
+      const on = st.selected.includes(w), custom = st.extra.includes(w);
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'wh-chip' + (on ? ' on' : '');
+      b.setAttribute('aria-pressed', String(on)); b.title = on ? `Armazém ${w} entra na consulta. Toque para tirar.` : `Toque para incluir o armazém ${w} na consulta.`;
+      b.append(w);
+      if (custom) {
+        const x = document.createElement('span'); x.className = 'wh-x'; x.textContent = '×'; x.title = `Remover o armazém ${w} da lista`; x.setAttribute('role', 'button'); x.setAttribute('aria-label', `Remover armazém ${w} da lista`);
+        x.onclick = e => { e.stopPropagation(); removeWh(w); };
+        b.append(x);
+      }
+      b.onclick = () => toggleWh(w);
+      box.append(b);
+    });
+    const add = document.createElement('button'); add.type = 'button'; add.className = 'wh-chip wh-add'; add.textContent = '＋'; add.title = 'Incluir outro armazém na lista'; add.setAttribute('aria-label', 'Incluir outro armazém');
+    add.onclick = addWh; box.append(add);
+  });
+}
+function toggleWh(w) {
+  const st = whState(), on = st.selected.includes(w);
+  if (on && st.selected.length === 1) return message('Deixe pelo menos um armazém marcado.', 'error');
+  st.selected = whSort(on ? st.selected.filter(x => x !== w) : [...st.selected, w]);
+  whSave(st); renderWh(); onWhChange();
+}
+async function addWh() {
+  const v = await askText({ kicker: 'ARMAZÉNS', title: 'Incluir armazém', text: 'Digite o código do armazém (ex.: 95). Ele aparece na lista deste aparelho e já entra marcado na consulta.', okText: 'Incluir' });
+  if (v === null) return;
+  const w = whClean(v);
+  if (!w) return message('Código de armazém inválido.', 'error');
+  const st = whState();
+  if (!st.all.includes(w)) st.extra = whSort([...st.extra, w]);
+  st.selected = whSort([...new Set([...st.selected, w])]);
+  whSave(st); renderWh(); onWhChange();
+}
+async function removeWh(w) {
+  if (!(await askOk({ kicker: 'ARMAZÉNS', title: `Remover o armazém ${w} da lista?`, text: 'Só deste aparelho. Dá para incluir de novo no ＋.', okText: 'Remover' }))) return;
+  const st = whState();
+  st.extra = st.extra.filter(x => x !== w); st.selected = st.selected.filter(x => x !== w);
+  if (!st.selected.length) st.selected = WH_DEFAULT.slice();
+  whSave(st); renderWh(); onWhChange();
+}
+// No resultado: tirar um armazém só filtra; incluir um que não veio na consulta pesquisa de novo.
+function onWhChange() {
+  if (document.body.dataset.view !== 'results' || !selected || !selected.code) return;
+  const missing = whSelected().filter(w => !(loadedWh || []).includes(w));
+  if (missing.length && !punhoCtx) search(selected.code, 'results');
+  else applyFilters();
+}
 const pastasUrl = () => String((window.NOVA_CONFIG && window.NOVA_CONFIG.pastasUrl) || lsGet(PURL_KEY, '') || '').trim();
 const teamKey = () => String(lsGet(PKEY_KEY, '') || '');
 const isShared = () => !!(pastasUrl() && teamKey());
@@ -1881,9 +1956,10 @@ async function searchPunho() {
   if (!code || !ops.size) return;
   const btn = $('punhoGo'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Consultando punho…'; clearMessage();
   try {
-    const [d] = await Promise.all([api(`/api/stock?code=${encodeURIComponent(code)}`, {}, SEARCH_TIMEOUT_MS), loadDefects().catch(() => {})]);
+    const [d] = await Promise.all([api(`/api/stock?code=${encodeURIComponent(code)}&wh=${encodeURIComponent(whParam())}`, {}, SEARCH_TIMEOUT_MS), loadDefects().catch(() => {})]);
     const rows = Array.isArray(d.rows) ? d.rows : [];
-    if (!rows.length) { message(`Nenhum rolo de punho ${code} com estoque nos armazéns 01/93/98.`, 'error'); return; }
+    if (!rows.length) { message(`Nenhum rolo de punho ${code} com estoque nos armazéns ${whLabel()}.`, 'error'); return; }
+    loadedWh = Array.isArray(d.warehouses) && d.warehouses.length ? d.warehouses : whSelected();
     const malha = { ...selected }, malhaRows = currentRows;
     punhoCtx = { malha, malhaRows, ops, malhaSelected: new Set(punhoSelected) };
     const desc = String(d.product?.description || '').trim();
@@ -1954,9 +2030,10 @@ async function search(codeArg, from = 'search') {
   if (useBusy) resultsBusy(true);
   const closing = useFx ? novaClose(card, { loading: true }) : useBusy ? wait(700) : Promise.resolve();
   let found = false;
+  const searchWh = whSelected();
   try {
     const [d] = await Promise.all([
-      api(`/api/stock?code=${encodeURIComponent(code)}`, {}, SEARCH_TIMEOUT_MS),
+      api(`/api/stock?code=${encodeURIComponent(code)}&wh=${encodeURIComponent(searchWh.join(','))}`, {}, SEARCH_TIMEOUT_MS),
       loadPriority().catch(() => {}), // recarrega a planilha: pega edições feitas no Excel
       loadDefects().catch(() => {})
     ]);
@@ -1966,7 +2043,7 @@ async function search(codeArg, from = 'search') {
       const dg = d.diagnostic || {};
       const tried = (dg.attempts || []).map(a => `${a.label}: ${a.error ? 'erro' : a.rows + ' linha(s)'}`).join(' · ');
       let why;
-      if (dg.productExists > 0) why = `O código ${code} existe na SZ5, mas nenhuma posição tem peso atual > 0 nos armazéns 01/93/98.`;
+      if (dg.productExists > 0) why = `O código ${code} existe na SZ5, mas nenhuma posição tem peso atual > 0 nos armazéns ${whLabel(searchWh)}.`;
       else if (dg.productExists === 0) why = `Nenhum registro na SZ5 para o código ${code}. Confira o código digitado.`;
       else why = 'A API respondeu sem linhas e não foi possível confirmar se o código existe.';
       message(`${why} Tentativas: ${tried || 'nenhuma'}.`, 'error');
@@ -1976,6 +2053,7 @@ async function search(codeArg, from = 'search') {
     resetPunho();
     found = true;
     showView('results'); $('term').value = code;
+    loadedWh = Array.isArray(d.warehouses) && d.warehouses.length ? d.warehouses : searchWh;
     stock({ code, description: desc }, rows);
     if (useFx) { novaReset(card); popIn($('stockSection')); }
     if (useBusy) { resultsBusy(false); popIn($('stockSection')); }
@@ -2110,7 +2188,52 @@ function setupSuggest(input, box, from) {
   input.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== input && !box.contains(document.activeElement)) close(); }, 180));
   return { run, close };
 }
+/* ------------------- busca por OP / partida (sem código do produto) ------------------- */
+function openOpSearch() {
+  if (!connected) return goLogin('Entre no Protheus antes de pesquisar.');
+  renderWh(); $('opResults').replaceChildren();
+  $('opModal').classList.remove('hidden'); setTimeout(() => $('opInput').focus(), 40);
+}
+function closeOpSearch() { $('opModal').classList.add('hidden'); }
+const opNote = t => { const n = document.createElement('div'); n.className = 'op-note'; n.textContent = t; return n; };
+async function openProductByOp(code, op, partida) {
+  closeOpSearch();
+  $('codeInput').value = code; updateCodeInput();
+  await search(code, document.body.dataset.view === 'results' ? 'results' : 'search');
+  if (selected && selected.code === code && document.body.dataset.view === 'results') {
+    $('opFilter').value = op || ''; $('partidaFilter').value = partida || ''; applyFilters();
+    const st = $('stockSection'); if (!st.classList.contains('filters-open') && window.matchMedia('(max-width:720px)').matches) $('filterToggle').click();
+  }
+}
+async function runOpSearch() {
+  const op = $('opInput').value.trim(), partida = $('partidaInput').value.trim();
+  const box = $('opResults'), btn = $('opGo');
+  if (!op && !partida) { box.replaceChildren(opNote('Informe a OP ou a partida.')); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Consultando Protheus…';
+  box.replaceChildren(opNote(`Procurando nos armazéns ${whLabel()}…`));
+  try {
+    const d = await api(`/api/op?op=${encodeURIComponent(op)}&partida=${encodeURIComponent(partida)}&wh=${encodeURIComponent(whParam())}`, {}, SEARCH_TIMEOUT_MS);
+    const list = Array.isArray(d.products) ? d.products : [];
+    if (!list.length) { box.replaceChildren(opNote(`Nenhum rolo com peso para ${[op && 'OP ' + op, partida && 'partida ' + partida].filter(Boolean).join(' e ')} nos armazéns ${whLabel(d.warehouses || whSelected())}. Confira o número ou marque outros armazéns.`)); return; }
+    if (list.length === 1) return openProductByOp(list[0].code, op, partida);
+    box.replaceChildren(opNote(`${list.length} produtos encontrados${d.mode === 'contem' ? ' (OP/partida contendo o número digitado)' : ''}. Escolha um:`));
+    list.forEach(p => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'op-item';
+      const c = document.createElement('b'); c.textContent = p.code;
+      const ds = document.createElement('span'); ds.textContent = p.description || 'Descrição não informada';
+      const inf = document.createElement('small');
+      inf.textContent = `${p.rolls} rolo(s) · ${fmtNum(p.weight, 2)} kg · arm. ${(p.warehouses || []).join('/')} · ${(p.ops || []).slice(0, 4).map(o => `OP ${o.op || '—'} / ${o.partida || '—'}`).join(' · ')}${(p.ops || []).length > 4 ? ' …' : ''}`;
+      b.append(c, ds, inf); b.onclick = () => openProductByOp(p.code, op, partida);
+      box.append(b);
+    });
+    if (d.truncated) box.append(opNote('A consulta atingiu o limite de páginas/tempo: a lista pode estar incompleta. Digite a OP mais completa.'));
+  } catch (e) {
+    if (e.status === 401 || e.status === 403) { closeOpSearch(); return requireLogin(); }
+    box.replaceChildren(opNote(e.status === 404 ? 'Esta versão do NOVA (computador) ainda não tem a busca por OP.' : (e.message || 'Falha na consulta.')));
+  } finally { btn.disabled = false; btn.textContent = 'Buscar →'; }
+}
 function stock(p, rows = []) {
+  if (!selected || selected.code !== p.code) { $('opFilter').value = ''; $('partidaFilter').value = ''; }
   selected = p; currentRows = Array.isArray(rows) ? rows : []; visibleRows = []; currentGroups = [];
   $('selectedProduct').textContent = `${p.code} — ${p.description || 'Descrição não informada'}${p.punho ? ' · PUNHO' : ''}`;
   $('stockSection').classList.remove('hidden');
@@ -2154,7 +2277,11 @@ function rowCandidate(r, type) {
 function applyFilters() {
   const type = $('filterType').value, term = normalizeFilter($('filterValue').value);
   const addr = $('addressFilter').value;
-  const filtered = currentRows.filter(r => (!addr || (addrOf(r) || '(sem endereço)') === addr) && (!term || rowCandidate(r, type).includes(term)));
+  const opT = normalizeFilter($('opFilter').value), ptT = normalizeFilter($('partidaFilter').value);
+  const whs = new Set(whSelected());
+  const filtered = currentRows.filter(r => (!addr || (addrOf(r) || '(sem endereço)') === addr) && (!term || rowCandidate(r, type).includes(term))
+    && whs.has(String(field(r, 'Z5_ALMOXA') ?? '').trim())
+    && (!opT || normalizeFilter(opOf(r)).includes(opT)) && (!ptT || normalizeFilter(partidaOf(r)).includes(ptT)));
   visibleRows = rankRows(filtered);
   const ng = renderStock(visibleRows);
   $('filterCount').textContent = `${visibleRows.length} de ${currentRows.length} rolos · ${ng} grupo(s)`;
@@ -2651,7 +2778,14 @@ document.addEventListener('keydown', e => {
 });
 $('filterType').onchange = () => { updateFilterHint(); $('filterValue').value = ''; applyFilters(); };
 $('filterValue').oninput = applyFilters;
-$('clearFilters').onclick = () => { $('filterValue').value = ''; $('addressFilter').value = ''; applyFilters(); $('filterValue').focus(); };
+$('opFilter').oninput = applyFilters; $('partidaFilter').oninput = applyFilters;
+renderWh();
+$('opBtn').onclick = () => openOpSearch();
+$('closeOp').onclick = closeOpSearch;
+$('opModal').addEventListener('mousedown', e => { if (e.target === $('opModal')) closeOpSearch(); });
+$('opModal').addEventListener('keydown', e => { if (e.key === 'Escape') closeOpSearch(); });
+$('opForm').onsubmit = e => { e.preventDefault(); runOpSearch(); };
+$('clearFilters').onclick = () => { $('filterValue').value = ''; $('addressFilter').value = ''; $('opFilter').value = ''; $('partidaFilter').value = ''; applyFilters(); $('filterValue').focus(); };
 $('prioritySettingsBtn').onclick = openPriorityEditor;
 $('closePriorityModal').onclick = () => closePriorityEditor();
 $('cancelPriority').onclick = () => closePriorityEditor();

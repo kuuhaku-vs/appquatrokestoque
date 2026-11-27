@@ -73,7 +73,11 @@ Dê dois cliques em **NOVA.exe** (fica nesta pasta, junto com o `index.html`). E
 - Não precisa enviar o NOVA.exe para o GitHub.
 
 ## Como funciona nesta versão
-- A consulta traz os rolos com peso nos armazéns **01, 93 e 98**; em **Mais filtros → Filtrar por → Armazém** dá para ver só um deles (ex.: `98`).
+- **Armazéns da consulta (27/11)**: na tela de pesquisa e no resultado aparecem os armazéns **01 · 89 · 93 · 97 · 98** como botões; vêm marcados **01, 93 e 98**. Toque para marcar/desmarcar. No resultado, desmarcar só esconde os rolos daquele armazém; marcar um que não veio na consulta pesquisa de novo, já incluindo ele. A escolha fica guardada no aparelho.
+  - **Outro armazém sem mexer no código**: toque em **＋** e digite o código (ex.: `95`). Ele entra na lista deste aparelho (com um **×** para remover).
+  - Para mudar a lista ou os marcados por padrão **para todos**, edite só o `config.js` (`armazens` e `armazensPadrao`).
+- **Filtro por OP e partida**: no resultado há os campos **OP** e **Partida** (podem ser usados juntos, e com Endereço/Armazém). Basta parte do número.
+- **🔎 Buscar por OP / partida** (tela de pesquisa): procura direto no Protheus pela OP e/ou partida, sem saber o código do produto, nos armazéns marcados. Com um produto só, abre o resultado já filtrado; com vários, mostra a lista para escolher.
 - Mesmas telas e regras do NOVA do computador: grupos por OP/Partida, prioridade (armazém 93 / AM01 / AM02, aprovado para amostra, CMC, entrada), punhos por OP, gramatura ideal da SBM (BM_GRAMTIN).
 - **Defeitos e regras de gramatura ficam guardados no próprio aparelho.** Para levar os defeitos do computador para o celular: no NOVA do computador, copie o arquivo `dados/MALHAS_RUINS.csv` para o celular (e-mail, WhatsApp, OneDrive…) e, no celular, abra um grupo → **Indicar defeito → Importar planilha**. **Baixar planilha** exporta os defeitos do celular.
 - "Mantenha-me conectado" guarda o acesso **neste navegador** por 30 dias. Use só no seu celular e toque em **Sair** se emprestar o aparelho.
